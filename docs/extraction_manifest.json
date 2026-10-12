@@ -1,0 +1,1719 @@
+{
+  "source_repository": "MishraLtd/TradeX",
+  "source_commit": "9dcfa3de9e2fc59db1c86dfe7796e4339dcd46b9",
+  "destination_repository": "MishraLtd/TradeX-Autonomous",
+  "mapping": [
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/COSTMODEL(CM)/SPEC.md",
+      "destination_path": "Phase2B_CostPnL/SPEC.md",
+      "sha256": "90205b50bbe3aabe3bea65b677f080240f34eb4f92876a211c4ffb172b5568ff",
+      "size": 16640
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/COSTMODEL(CM)/tradex_cost_model/SPEC.md",
+      "destination_path": "Phase2B_CostPnL/cost_model/SPEC.md",
+      "sha256": "90205b50bbe3aabe3bea65b677f080240f34eb4f92876a211c4ffb172b5568ff",
+      "size": 16640
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/COSTMODEL(CM)/tradex_cost_model/cost_model/__init__.py",
+      "destination_path": "Phase2B_CostPnL/cost_model/__init__.py",
+      "sha256": "927f26a5733ed39b31bc51349ded3aafdaf3acdb7ad9718eb35fa28d1263dccb",
+      "size": 964
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/COSTMODEL(CM)/tradex_cost_model/cost_model/breakeven.py",
+      "destination_path": "Phase2B_CostPnL/cost_model/breakeven.py",
+      "sha256": "a1059faaab368a2ac9fe2ffd12e65d7660d8a62327d2095801ab47c8d4cfef43",
+      "size": 5184
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/COSTMODEL(CM)/tradex_cost_model/cost_model/calculators.py",
+      "destination_path": "Phase2B_CostPnL/cost_model/calculators.py",
+      "sha256": "30dab7b021dc483bc0f5cae8cdc6a1c7bbb070d1ac7c664465733215c7d62339",
+      "size": 5362
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/COSTMODEL(CM)/tradex_cost_model/cost_model/config.py",
+      "destination_path": "Phase2B_CostPnL/cost_model/config.py",
+      "sha256": "42190c10ed5c4278274cbaa28435fb00d5ae5316648f7a6e180c7b9cad70727a",
+      "size": 3525
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/COSTMODEL(CM)/tradex_cost_model/cost_model/economics.py",
+      "destination_path": "Phase2B_CostPnL/cost_model/economics.py",
+      "sha256": "92f942b801713141fe5ca60c0f0c57d15aab57dd7ca33e9afba55d70c951198a",
+      "size": 3368
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/COSTMODEL(CM)/tradex_cost_model/cost_model/engine.py",
+      "destination_path": "Phase2B_CostPnL/cost_model/engine.py",
+      "sha256": "ea0b78c3a51d6b7797fa3c461abbbc15b27ac8786475d32db3310388fcd6c0bb",
+      "size": 10420
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/COSTMODEL(CM)/tradex_cost_model/cost_model/exceptions.py",
+      "destination_path": "Phase2B_CostPnL/cost_model/exceptions.py",
+      "sha256": "b80ac98541ab122d924808bf5f217c8ba2c0b7764cedc30cc630ea8bf22d31f1",
+      "size": 1915
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/COSTMODEL(CM)/tradex_cost_model/cost_model/fee_schedule.py",
+      "destination_path": "Phase2B_CostPnL/cost_model/fee_schedule.py",
+      "sha256": "dfc71f7992b85dd36fdfebb0aef9db0c0133909b7dcfdb634464319875d3cdf5",
+      "size": 9125
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/COSTMODEL(CM)/tradex_cost_model/cost_model/market_impact.py",
+      "destination_path": "Phase2B_CostPnL/cost_model/market_impact.py",
+      "sha256": "c55a90ad35ee24dfabdb4e3703c48b2dbd133f118ab82d223d5b308fabf44863",
+      "size": 4303
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/COSTMODEL(CM)/tradex_cost_model/cost_model/ml_interface.py",
+      "destination_path": "Phase2B_CostPnL/cost_model/ml_interface.py",
+      "sha256": "97fd9a4f4c45197c4c2a3e9efa47c45d7c858fd556ef33fbc0b22754ce3c9cac",
+      "size": 2801
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/COSTMODEL(CM)/tradex_cost_model/cost_model/models.py",
+      "destination_path": "Phase2B_CostPnL/cost_model/models.py",
+      "sha256": "db2a17aa02e1d5518ec78ac9d723fda0f1e0cddc1a679f966160c9cdbd3327db",
+      "size": 8426
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/COSTMODEL(CM)/tradex_cost_model/cost_model/operating_costs.py",
+      "destination_path": "Phase2B_CostPnL/cost_model/operating_costs.py",
+      "sha256": "a23f6f7f2a46c79999d71bce6425e7ffd8923946524b2e71f15cf336af5e624c",
+      "size": 3444
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/COSTMODEL(CM)/tradex_cost_model/cost_model/portfolio_interface.py",
+      "destination_path": "Phase2B_CostPnL/cost_model/portfolio_interface.py",
+      "sha256": "232a8b8fee216b91ff1237c40225cc519c03e441b25e6d9b59480591a39c174e",
+      "size": 2569
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/COSTMODEL(CM)/tradex_cost_model/cost_model/reconciliation.py",
+      "destination_path": "Phase2B_CostPnL/cost_model/reconciliation.py",
+      "sha256": "ff6ac249f230d769a2ef56a8a2e57b707995c3aa1d52b561942c769385b6edd7",
+      "size": 3814
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/COSTMODEL(CM)/tradex_cost_model/cost_model/scenarios.py",
+      "destination_path": "Phase2B_CostPnL/cost_model/scenarios.py",
+      "sha256": "f03a1d4ce433ec94c12ddeab501efcf3cfb64a6f5b848f46bcdda915a3e34e51",
+      "size": 1830
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/COSTMODEL(CM)/tradex_cost_model/cost_model/slippage.py",
+      "destination_path": "Phase2B_CostPnL/cost_model/slippage.py",
+      "sha256": "d1b8b762e33b239011cbe97057e73e07bc9399995d8d6bd1c73a3965ec63bdb6",
+      "size": 5050
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/COSTMODEL(CM)/tradex_cost_model/cost_model/validator.py",
+      "destination_path": "Phase2B_CostPnL/cost_model/validator.py",
+      "sha256": "db67ca7e5dd65274a0b3d5a8bd6cf0fb45fcbbd22994694664ac7063992392d8",
+      "size": 2862
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/COSTMODEL(CM)/tradex_cost_model/examples/example_run.py",
+      "destination_path": "Phase2B_CostPnL/examples/example_run.py",
+      "sha256": "8027199d4357b7a2e7883c7dbbc048d35d7492537c8c109e859d7fbab8fb3286",
+      "size": 5957
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/COSTMODEL(CM)/tradex_cost_model/tests/test_cost_model.py",
+      "destination_path": "Phase2B_CostPnL/tests/test_cost_model.py",
+      "sha256": "50cdf75d4bbec7f343d5d2287620493fd486b0d4e64286781ea842603fc0743d",
+      "size": 15872
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/README.md",
+      "destination_path": "Phase2_Monitoring/market_regime/README.md",
+      "sha256": "9caf2e02beae675c168797981e52b484038683f5c967fcd5200d0a86272b265a",
+      "size": 2076
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/db/schema.sql",
+      "destination_path": "Phase2_Monitoring/market_regime/db/schema.sql",
+      "sha256": "6f025617b9f6f2476520c2e910c3ca4547075ed47de3a5c6b9dc82a9fae6b9fe",
+      "size": 5164
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/docs/ARCHITECTURE.md",
+      "destination_path": "Phase2_Monitoring/market_regime/docs/ARCHITECTURE.md",
+      "sha256": "c1c6dac01236fc73b6070e8bcf24ecffa9b60a806b45373aea26de30d7a42c3f",
+      "size": 21247
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/market_regime/__init__.py",
+      "destination_path": "Phase2_Monitoring/market_regime/__init__.py",
+      "sha256": "214bbc4ccfa3af94fa810bbb744650261f83b407ff42e0d8f2d8a73cc59343e8",
+      "size": 360
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/market_regime/_math_utils.py",
+      "destination_path": "Phase2_Monitoring/market_regime/_math_utils.py",
+      "sha256": "8e05c2fab19d6d01dcfdf7065c50f760d7188925705393864a07f9b25c66aea5",
+      "size": 5212
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/market_regime/breadth.py",
+      "destination_path": "Phase2_Monitoring/market_regime/breadth.py",
+      "sha256": "26894570c7d0dd3c90cf185baa3e26a52658f6aa624100b4785112cae64f976e",
+      "size": 1664
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/market_regime/calibration.py",
+      "destination_path": "Phase2_Monitoring/market_regime/calibration.py",
+      "sha256": "0e8e36b287edd902b6d84effc93043a10ea82c3a0081c4a3492b1ab5179073f8",
+      "size": 1767
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/market_regime/config.py",
+      "destination_path": "Phase2_Monitoring/market_regime/config.py",
+      "sha256": "40bb056ec014030c97440457166e7d2f6bd6a5a6af5ddfbb12533c1124f4582b",
+      "size": 4396
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/market_regime/enums.py",
+      "destination_path": "Phase2_Monitoring/market_regime/enums.py",
+      "sha256": "853a5d44b36c8459f38222ea75bbd4e6820e14604e992593ecd1b7c3d4f657d0",
+      "size": 2573
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/market_regime/exceptions.py",
+      "destination_path": "Phase2_Monitoring/market_regime/exceptions.py",
+      "sha256": "500c1d5435630a581bac2a187a4ef3d97522e541a87257fd9cb9e65f6add6420",
+      "size": 806
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/market_regime/inference.py",
+      "destination_path": "Phase2_Monitoring/market_regime/inference.py",
+      "sha256": "69f5e25d2e890fcfa246f9bd79a9f4b13d3f65e0a785ae2a8cdc78cd9d6b5549",
+      "size": 15378
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/market_regime/momentum.py",
+      "destination_path": "Phase2_Monitoring/market_regime/momentum.py",
+      "sha256": "a59c77eb29400cb217b5a0c887f16ec7a34a8b63540410d4d877562a26ea4642",
+      "size": 1122
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/market_regime/persistence.py",
+      "destination_path": "Phase2_Monitoring/market_regime/persistence.py",
+      "sha256": "8092d7a51054eb4a312b9f263c29007aefd85d5d930213acb7f380e5e614b55a",
+      "size": 2245
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/market_regime/position_adjustment.py",
+      "destination_path": "Phase2_Monitoring/market_regime/position_adjustment.py",
+      "sha256": "c06bb0fc3de02dcb7fcdeffa093e37500782187acfb0d8286cbc20496f8bf9f7",
+      "size": 3626
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/market_regime/rule_based.py",
+      "destination_path": "Phase2_Monitoring/market_regime/rule_based.py",
+      "sha256": "8abc655f838dbe7ad2332987875e1aea4b8e212e81e931d0d1b229d9fe816721",
+      "size": 5361
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/market_regime/schemas.py",
+      "destination_path": "Phase2_Monitoring/market_regime/schemas.py",
+      "sha256": "05dbcb4a19f79b90998dc7be5f8604674928235c870dceef1c9f0e4aae14dbb0",
+      "size": 5713
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/market_regime/strategy_compatibility.py",
+      "destination_path": "Phase2_Monitoring/market_regime/strategy_compatibility.py",
+      "sha256": "70fc976e48774c6be771023758ceac20ad04e9ccbee4f50824e852aedfa79418",
+      "size": 3650
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/market_regime/stress.py",
+      "destination_path": "Phase2_Monitoring/market_regime/stress.py",
+      "sha256": "623214d8d0088d19a1128c5bacd344e0270ef08c8ac15acadebf8385f1433775",
+      "size": 3416
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/market_regime/transitions.py",
+      "destination_path": "Phase2_Monitoring/market_regime/transitions.py",
+      "sha256": "e152037777f094c72b3f1220ba85610269453167054be2f308c1f0250bd3a4ed",
+      "size": 5562
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/market_regime/trend.py",
+      "destination_path": "Phase2_Monitoring/market_regime/trend.py",
+      "sha256": "3f6b21228f8b31fd00c9a389a091b826a48ceded842486f2994f48a3d9c58439",
+      "size": 2885
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/market_regime/validator.py",
+      "destination_path": "Phase2_Monitoring/market_regime/validator.py",
+      "sha256": "135346e611705b6e83619323c14dbacee5841361dc9e0360eacc4398c3b72eee",
+      "size": 2006
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/market_regime/volatility.py",
+      "destination_path": "Phase2_Monitoring/market_regime/volatility.py",
+      "sha256": "9bc3ee045136969907d0253bcdb4d774f84874ba14a896030fcee43c95defcc4",
+      "size": 2072
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/tests/__init__.py",
+      "destination_path": "Phase2_Monitoring/market_regime/tests/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/tests/factory.py",
+      "destination_path": "Phase2_Monitoring/market_regime/tests/factory.py",
+      "sha256": "7c29a254c0b10bb7e0f5bf65697e719275577dcc16d202b05664e9852328d537",
+      "size": 2625
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/tests/test_failure_modes.py",
+      "destination_path": "Phase2_Monitoring/market_regime/tests/test_failure_modes.py",
+      "sha256": "39f5b27236fb99b1ae7a97626976343f998cfa4c07c8548efdaf38268a775b10",
+      "size": 2492
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/tests/test_features.py",
+      "destination_path": "Phase2_Monitoring/market_regime/tests/test_features.py",
+      "sha256": "38055775450feeadc95677cf7f8ab9bdd7a744f7afb9a35fb419eb450f710441",
+      "size": 3133
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/tests/test_regime_classifier.py",
+      "destination_path": "Phase2_Monitoring/market_regime/tests/test_regime_classifier.py",
+      "sha256": "92868c366135ab4651d6fbd1f0d9196ed1aa9a94baf31119d0f7aeb1baca692c",
+      "size": 6861
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/tests/test_transitions.py",
+      "destination_path": "Phase2_Monitoring/market_regime/tests/test_transitions.py",
+      "sha256": "fa22a015f6908fb2266824ed0171f51981400be38c9b36faa1c3fd851707d4bc",
+      "size": 3318
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/OPPOURTUNITYMODEL(OM)/README.md",
+      "destination_path": "Phase2_Monitoring/opportunity_model/docs/SOURCE_README.md",
+      "sha256": "061880b351c6f48b8579d0eb6d608544f5826958812016dd672eeaea90f281cc",
+      "size": 22334
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/OPPOURTUNITYMODEL(OM)/opportunity_model/__init__.py",
+      "destination_path": "Phase2_Monitoring/opportunity_model/__init__.py",
+      "sha256": "267d473fcdea968157dc13f395677522fd25b772d2fbf87505ee9195640d293d",
+      "size": 1115
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/OPPOURTUNITYMODEL(OM)/opportunity_model/components.py",
+      "destination_path": "Phase2_Monitoring/opportunity_model/components.py",
+      "sha256": "6ab9b2fa2aa9aa91240de14386e8ed2df535a403f0cd495c74926b43c6571006",
+      "size": 13038
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/OPPOURTUNITYMODEL(OM)/opportunity_model/config.py",
+      "destination_path": "Phase2_Monitoring/opportunity_model/config.py",
+      "sha256": "5415869e3b6e5587974e415ca77b98ad78bd6e04fc0cd962b2d3b77bb8f379c5",
+      "size": 9660
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/OPPOURTUNITYMODEL(OM)/opportunity_model/example.py",
+      "destination_path": "Phase2_Monitoring/opportunity_model/example.py",
+      "sha256": "44f7d4ad976bbe288dbac2e1144a634d5844d5abb591518faf5f59fc319c5a1a",
+      "size": 3320
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/OPPOURTUNITYMODEL(OM)/opportunity_model/exceptions.py",
+      "destination_path": "Phase2_Monitoring/opportunity_model/exceptions.py",
+      "sha256": "b3f825bb6938125fff1a0b7264c3da54e8149461b958e14b08c87c92e45b44d6",
+      "size": 1681
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/OPPOURTUNITYMODEL(OM)/opportunity_model/explainability.py",
+      "destination_path": "Phase2_Monitoring/opportunity_model/explainability.py",
+      "sha256": "caaca2418e4d90144634b7d1a6dad4019fee623b1baaae9fe64caeab88f3cb9f",
+      "size": 3662
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/OPPOURTUNITYMODEL(OM)/opportunity_model/gates.py",
+      "destination_path": "Phase2_Monitoring/opportunity_model/gates.py",
+      "sha256": "c8b6e49ddd3c95b3f77a4ff2082fa4af479dc3f9dc82eded5cd8ed0e47f7ea34",
+      "size": 7174
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/OPPOURTUNITYMODEL(OM)/opportunity_model/normalization.py",
+      "destination_path": "Phase2_Monitoring/opportunity_model/normalization.py",
+      "sha256": "8c85b24902cfaa493eae934f7d4f50bf45ef154a9dc046684147196eb30a1161",
+      "size": 2794
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/OPPOURTUNITYMODEL(OM)/opportunity_model/persistence.py",
+      "destination_path": "Phase2_Monitoring/opportunity_model/persistence.py",
+      "sha256": "19f0dca996a3af183ff4de8caae60638380cf231acc0057dc4623ed3dbe2c8a9",
+      "size": 6181
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/OPPOURTUNITYMODEL(OM)/opportunity_model/ranking.py",
+      "destination_path": "Phase2_Monitoring/opportunity_model/ranking.py",
+      "sha256": "539ab331a98d228852a4670646903b4f811cb69898d2676d449e47bcc1b5c865",
+      "size": 6140
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/OPPOURTUNITYMODEL(OM)/opportunity_model/scenarios.py",
+      "destination_path": "Phase2_Monitoring/opportunity_model/scenarios.py",
+      "sha256": "2f8c6efb22bcf853071c27d0e0f94e1bfbd5ab2a9dad1cc8a507909549850582",
+      "size": 3866
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/OPPOURTUNITYMODEL(OM)/opportunity_model/schemas.py",
+      "destination_path": "Phase2_Monitoring/opportunity_model/schemas.py",
+      "sha256": "60f4640838c3bb323ac51fc99edde0ee267b4cc2e6eaad519ec66fc6b06d8688",
+      "size": 10552
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/OPPOURTUNITYMODEL(OM)/opportunity_model/scoring.py",
+      "destination_path": "Phase2_Monitoring/opportunity_model/scoring.py",
+      "sha256": "90b476deeae5c2d1527eb80c11a04e18ff569a91eb2370b7458c4919334221a2",
+      "size": 10047
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/OPPOURTUNITYMODEL(OM)/opportunity_model/testing_helpers.py",
+      "destination_path": "Phase2_Monitoring/opportunity_model/testing_helpers.py",
+      "sha256": "5a09f4c5d0da5272efc08197b69e5a11a38667627a40d254ad9e685f7649b622",
+      "size": 4887
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/OPPOURTUNITYMODEL(OM)/opportunity_model/tests/__init__.py",
+      "destination_path": "Phase2_Monitoring/opportunity_model/tests/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/OPPOURTUNITYMODEL(OM)/opportunity_model/tests/test_opportunity_model.py",
+      "destination_path": "Phase2_Monitoring/opportunity_model/tests/test_opportunity_model.py",
+      "sha256": "3a41d6e8021846e33702db1cd4afe811c066345c806816bfeed5fed7064dece2",
+      "size": 14685
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/OPPOURTUNITYMODEL(OM)/opportunity_model/validation.py",
+      "destination_path": "Phase2_Monitoring/opportunity_model/validation.py",
+      "sha256": "0765c6e8e7c936914bdc4c73b1dcb4000a4ad922d596f19f6d81f4ada773b153",
+      "size": 6599
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/OPPOURTUNITYMODEL(OM)/tradex_opportunity_model_README.md",
+      "destination_path": "Phase2_Monitoring/opportunity_model/docs/TRADEX_OPPORTUNITY_MODEL_README.md",
+      "sha256": "061880b351c6f48b8579d0eb6d608544f5826958812016dd672eeaea90f281cc",
+      "size": 22334
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/README.md",
+      "destination_path": "Phase2_Monitoring/return_model/README.md",
+      "sha256": "b3d3d7f51f8f70773cde7eb2a6fe4ad50e8a6d555d5ddd3fb76ab87783f5e994",
+      "size": 11306
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/__init__.py",
+      "destination_path": "Phase2_Monitoring/return_model/__init__.py",
+      "sha256": "9a4c239f468876cf857821ca62275f9346f0df6aea486b13106c35b78c09e087",
+      "size": 408
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/calibration/__init__.py",
+      "destination_path": "Phase2_Monitoring/return_model/calibration/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/calibration/calibrator.py",
+      "destination_path": "Phase2_Monitoring/return_model/calibration/calibrator.py",
+      "sha256": "53de4bcc8b02399fec35792359d7baacc91d773f266826959ee257d99efce281",
+      "size": 2894
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/config.py",
+      "destination_path": "Phase2_Monitoring/return_model/config.py",
+      "sha256": "3137d08209b61f1af6fd448cdbc8106a8a966933e6e6cefd6dbe6b5d268190f8",
+      "size": 3557
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/datasets/__init__.py",
+      "destination_path": "Phase2_Monitoring/return_model/datasets/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/datasets/builder.py",
+      "destination_path": "Phase2_Monitoring/return_model/datasets/builder.py",
+      "sha256": "7e8c7022d4f2fb1c2bffdb99f04f3bf921642116bf8e4d1e2eebe64b4fb069d0",
+      "size": 3809
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/evaluation/__init__.py",
+      "destination_path": "Phase2_Monitoring/return_model/evaluation/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/evaluation/metrics.py",
+      "destination_path": "Phase2_Monitoring/return_model/evaluation/metrics.py",
+      "sha256": "0d48f463ec5dac1d8620096267244e2ab307476b86cef488e9d92cc0b4cbc48f",
+      "size": 4508
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/explainability/__init__.py",
+      "destination_path": "Phase2_Monitoring/return_model/explainability/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/explainability/explain.py",
+      "destination_path": "Phase2_Monitoring/return_model/explainability/explain.py",
+      "sha256": "6bbf7e688789b43939c6db0443a357331eae60616ab7c42a24a9c7cf27084932",
+      "size": 2015
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/features/__init__.py",
+      "destination_path": "Phase2_Monitoring/return_model/features/__init__.py",
+      "sha256": "280fb90c311f1bb112b7beeb06bd05204156dabc03820979d246d3603f502062",
+      "size": 63
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/features/engine.py",
+      "destination_path": "Phase2_Monitoring/return_model/features/engine.py",
+      "sha256": "ffc689bbc0c4417ceeed303a2d73b1398b20d13bf8bec80b5ed38c5a1456cf1c",
+      "size": 7766
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/inference/__init__.py",
+      "destination_path": "Phase2_Monitoring/return_model/inference/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/inference/engine.py",
+      "destination_path": "Phase2_Monitoring/return_model/inference/engine.py",
+      "sha256": "7e2569726b3643d29745980a29edbd52efb40f74371df7d0c19c5716ddcad2cc",
+      "size": 5862
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/inference/ood.py",
+      "destination_path": "Phase2_Monitoring/return_model/inference/ood.py",
+      "sha256": "3609b9e99be7a5ce170d0bbda5e3dbb01cd942d83a692b3b0980701312b7e953",
+      "size": 1283
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/integration/__init__.py",
+      "destination_path": "Phase2_Monitoring/return_model/integration/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/integration/cost_model_bridge.py",
+      "destination_path": "Phase2_Monitoring/return_model/integration/cost_model_bridge.py",
+      "sha256": "e2d7ab7b4bb69478b1632a6975fb36b193f1b66ba94ab1bcb5682dce15cfa36c",
+      "size": 3189
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/integration/end_to_end_example.py",
+      "destination_path": "Phase2_Monitoring/return_model/integration/end_to_end_example.py",
+      "sha256": "0895d093bc92039b81a3db15ec564b85bbce48132d607629d0662166194d1bb4",
+      "size": 8412
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/models/__init__.py",
+      "destination_path": "Phase2_Monitoring/return_model/models/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/models/baselines.py",
+      "destination_path": "Phase2_Monitoring/return_model/models/baselines.py",
+      "sha256": "21ead98e96581c4f946d525b63e6849623f4e8c921b3609776f069fc85522daa",
+      "size": 2428
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/models/boosting.py",
+      "destination_path": "Phase2_Monitoring/return_model/models/boosting.py",
+      "sha256": "0c0fd1db40bff34885f18e934f389877147dbf400eb703d5549f2f2a93d12b9a",
+      "size": 2655
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/preprocessing/__init__.py",
+      "destination_path": "Phase2_Monitoring/return_model/preprocessing/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/preprocessing/normalization.py",
+      "destination_path": "Phase2_Monitoring/return_model/preprocessing/normalization.py",
+      "sha256": "6729cc9bf55f81aefc5d05d31a58273817a9078a90391e7e1bef16570c561fab",
+      "size": 2682
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/preprocessing/quality.py",
+      "destination_path": "Phase2_Monitoring/return_model/preprocessing/quality.py",
+      "sha256": "3419650c49f3f6914bfa48e921397c9780d8c1ca3bdd9bf66048ad6e8c391e70",
+      "size": 3534
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/ranking/__init__.py",
+      "destination_path": "Phase2_Monitoring/return_model/ranking/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/ranking/cross_sectional.py",
+      "destination_path": "Phase2_Monitoring/return_model/ranking/cross_sectional.py",
+      "sha256": "fe207b8ae083fb02a1c8ec7dd072eeae0fee9387fb8de1a0b873493f875a2e31",
+      "size": 2327
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/registry/__init__.py",
+      "destination_path": "Phase2_Monitoring/return_model/registry/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/registry/model_registry.py",
+      "destination_path": "Phase2_Monitoring/return_model/registry/model_registry.py",
+      "sha256": "19437c538b218201242746a2c1871c3fca1d14131564108f9e31dc3a8104e368",
+      "size": 7363
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/requirements.txt",
+      "destination_path": "Phase2_Monitoring/return_model/requirements.txt",
+      "sha256": "f708c90e4bc11d1ff41538d3f256bfc74e5f57840d1fbf3e2d7d21ba336e6c3b",
+      "size": 144
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/schemas.py",
+      "destination_path": "Phase2_Monitoring/return_model/schemas.py",
+      "sha256": "40f97fe3db3af6c0867e4a4e7eb708a5c7ac0dbbe70cd95b7bcea90f1fa983f0",
+      "size": 3183
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/targets/__init__.py",
+      "destination_path": "Phase2_Monitoring/return_model/targets/__init__.py",
+      "sha256": "3ec8186c8dd382e523b42f37348c7040cc1974836cf427e1d92a00cbb5bacd4c",
+      "size": 356
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/targets/definitions.py",
+      "destination_path": "Phase2_Monitoring/return_model/targets/definitions.py",
+      "sha256": "17a39b5ac448d774b66df82a9d3e798c31ac446e06596644d2a0798c7a6639ec",
+      "size": 7752
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/tests/__init__.py",
+      "destination_path": "Phase2_Monitoring/return_model/tests/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/tests/test_core.py",
+      "destination_path": "Phase2_Monitoring/return_model/tests/test_core.py",
+      "sha256": "0a088c95df8487b567b2f3e3d511f4c9a3b6c82fa4a361942bfa0863cbcfa358",
+      "size": 6499
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/uncertainty/__init__.py",
+      "destination_path": "Phase2_Monitoring/return_model/uncertainty/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/uncertainty/quantile.py",
+      "destination_path": "Phase2_Monitoring/return_model/uncertainty/quantile.py",
+      "sha256": "572cffc0c6758457184089dfc0fed9d3be3dd7489b62345a30b08ebe7a61c6f4",
+      "size": 4191
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/walk_forward/__init__.py",
+      "destination_path": "Phase2_Monitoring/return_model/walk_forward/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/walk_forward/splitter.py",
+      "destination_path": "Phase2_Monitoring/return_model/walk_forward/splitter.py",
+      "sha256": "b4e7570366910c39c5eb028a5ecf79c2e78ffc0e139104363645bd55680d943f",
+      "size": 4569
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RISKMODEL(RKM)/ARCHITECTURE.md",
+      "destination_path": "Phase2_Monitoring/risk_model/ARCHITECTURE.md",
+      "sha256": "15ad0fe8511ae12b836b7d29629dfbff95b67e580cf6e1c4a5ce20693941304d",
+      "size": 24896
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RISKMODEL(RKM)/README.md",
+      "destination_path": "Phase2_Monitoring/risk_model/README.md",
+      "sha256": "4b82bc83530f1fa2607cbaa2db96cd4a44729aa97831570849ba22362880d4b6",
+      "size": 3888
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RISKMODEL(RKM)/TradeX_Risk_Model_Architecture.md",
+      "destination_path": "Phase2_Monitoring/risk_model/TradeX_Risk_Model_Architecture.md",
+      "sha256": "15ad0fe8511ae12b836b7d29629dfbff95b67e580cf6e1c4a5ce20693941304d",
+      "size": 24896
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RISKMODEL(RKM)/__init__.py",
+      "destination_path": "Phase2_Monitoring/risk_model/__init__.py",
+      "sha256": "2042d2ebdb97a0ab5eabd93501c43f48956100a823cd9d5af5af805ff9d34d99",
+      "size": 441
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RISKMODEL(RKM)/baselines.py",
+      "destination_path": "Phase2_Monitoring/risk_model/baselines.py",
+      "sha256": "3e82574dcf124edb17c1eb15728a31d8ee7e89c54f5e3f396526ab60e082bf92",
+      "size": 6722
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RISKMODEL(RKM)/calibration.py",
+      "destination_path": "Phase2_Monitoring/risk_model/calibration.py",
+      "sha256": "4a91bd46de5d821df841ca64864bff424efa8242cf99de60ae71ade0e5a7b3de",
+      "size": 2339
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RISKMODEL(RKM)/config.py",
+      "destination_path": "Phase2_Monitoring/risk_model/config.py",
+      "sha256": "056e824fa8bbcfd76cfb46a0377f1dab91f3dbecc9ba863c421f8cb9d15d26b3",
+      "size": 2481
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RISKMODEL(RKM)/exceptions.py",
+      "destination_path": "Phase2_Monitoring/risk_model/exceptions.py",
+      "sha256": "0f5d7027a0047548e0e620d6e52a95c090266f0f83f5a8455d9eb84285d92655",
+      "size": 556
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RISKMODEL(RKM)/features.py",
+      "destination_path": "Phase2_Monitoring/risk_model/features.py",
+      "sha256": "040ed62e127528e30a342ffd8ef35aca660735c56941732a4a22943b5f2f6a9f",
+      "size": 4713
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RISKMODEL(RKM)/inference.py",
+      "destination_path": "Phase2_Monitoring/risk_model/inference.py",
+      "sha256": "915170d52e04dd0286f34069b4489cb28e9c73d704d4afeca1f61ddf74bcdcdd",
+      "size": 6317
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RISKMODEL(RKM)/labels.py",
+      "destination_path": "Phase2_Monitoring/risk_model/labels.py",
+      "sha256": "a10a819a77ed71db416e3602612c430e8f0f71139871540557d218eab7ef1c19",
+      "size": 6509
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RISKMODEL(RKM)/ood.py",
+      "destination_path": "Phase2_Monitoring/risk_model/ood.py",
+      "sha256": "50c4090d6393d6130cc8649be298967c8e3b7e5216bb6007515c389c5e90ac0f",
+      "size": 2155
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RISKMODEL(RKM)/requirements.txt",
+      "destination_path": "Phase2_Monitoring/risk_model/requirements.txt",
+      "sha256": "06ffe6ee2ccda1e90898762ce018501728550915caf7af697ed56bebb6c8f217",
+      "size": 51
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RISKMODEL(RKM)/schema.py",
+      "destination_path": "Phase2_Monitoring/risk_model/schema.py",
+      "sha256": "a940ca1931ed249410f82dc26eafa57926b7336fd63f6fa4fb52ad18f937b70f",
+      "size": 2895
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RISKMODEL(RKM)/scoring.py",
+      "destination_path": "Phase2_Monitoring/risk_model/scoring.py",
+      "sha256": "a7286c4293d2aae957a15c0ee447bcd8aaaf70197f05fe6788b8c6038fb0bda8",
+      "size": 3021
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RISKMODEL(RKM)/tests/__init__.py",
+      "destination_path": "Phase2_Monitoring/risk_model/tests/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RISKMODEL(RKM)/tests/conftest.py",
+      "destination_path": "Phase2_Monitoring/risk_model/tests/conftest.py",
+      "sha256": "74e7b3460ad4c618fafdb88893e6171b4e3aed2455f143e93baafb39fd4e6bdd",
+      "size": 876
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RISKMODEL(RKM)/tests/test_baselines.py",
+      "destination_path": "Phase2_Monitoring/risk_model/tests/test_baselines.py",
+      "sha256": "54c5a577d72abc4446a47a6d3719fdd7df1ddc1415ead248597b68fb3b24054b",
+      "size": 1836
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RISKMODEL(RKM)/tests/test_calibration.py",
+      "destination_path": "Phase2_Monitoring/risk_model/tests/test_calibration.py",
+      "sha256": "8a35edf0bac41b4e79ca6e194186dfd0a69c4537b4094d66f23c60e7f8af5f59",
+      "size": 895
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RISKMODEL(RKM)/tests/test_inference.py",
+      "destination_path": "Phase2_Monitoring/risk_model/tests/test_inference.py",
+      "sha256": "45a769d691ffc7aaa4e0a4aff35f4464311909ddd82de3aa1f5c9168670e9e5d",
+      "size": 705
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RISKMODEL(RKM)/tests/test_leakage.py",
+      "destination_path": "Phase2_Monitoring/risk_model/tests/test_leakage.py",
+      "sha256": "33680a03112f6fdcf69eca45ec0be6af288a03429b454f228425db5277f662e1",
+      "size": 2540
+    },
+    {
+      "source_path": "PHASE2 ALLV/PHASE2/RISKMODEL(RKM)/validation.py",
+      "destination_path": "Phase2_Monitoring/risk_model/validation.py",
+      "sha256": "9c31a1c56d0a81746a2e33ce31af3d2747cb593fc07b2982bddb1123f3103331",
+      "size": 3618
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/README.md",
+      "destination_path": "Phase3_Portfolio/README.md",
+      "sha256": "30a551b255283afc0405d97aa000503d975c732bf81f54a2a4ecdf72183cc5cb",
+      "size": 5103
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/capital_feasibility/__init__.py",
+      "destination_path": "Phase3_Portfolio/capital_feasibility/__init__.py",
+      "sha256": "af0cfe99e6ea833d421ed9e668c0e6108d74904bfb4104b51bb483bfa60e796d",
+      "size": 1458
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/capital_feasibility/adapters/__init__.py",
+      "destination_path": "Phase3_Portfolio/capital_feasibility/adapters/__init__.py",
+      "sha256": "6c0ed0a545f67006f04db4c0a5485c2efa84a5a87642a0f98b62204bde3d85c1",
+      "size": 435
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/capital_feasibility/adapters/cost_adapter.py",
+      "destination_path": "Phase3_Portfolio/capital_feasibility/adapters/cost_adapter.py",
+      "sha256": "f245b34f576d2fca8d29023c1e28fe943c2a0adaa43a235299174d7e9e3b7e21",
+      "size": 4004
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/capital_feasibility/adapters/portfolio_adapter.py",
+      "destination_path": "Phase3_Portfolio/capital_feasibility/adapters/portfolio_adapter.py",
+      "sha256": "929a499bb5eb962c110fe10a8a4376c9921ececbbb804dcc3358d348e54364c3",
+      "size": 3075
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/capital_feasibility/adapters/position_sizing_adapter.py",
+      "destination_path": "Phase3_Portfolio/capital_feasibility/adapters/position_sizing_adapter.py",
+      "sha256": "75d6598b939f99bd50eb5792e62a2393cb4e9d15dfcdd8c0377aa01557f379ae",
+      "size": 3099
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/capital_feasibility/api.py",
+      "destination_path": "Phase3_Portfolio/capital_feasibility/api.py",
+      "sha256": "663d83ee127ba14d751ba462dea974ab0d745b0da3bd1c7df497e1e7805a9ffd",
+      "size": 3077
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/capital_feasibility/audit.py",
+      "destination_path": "Phase3_Portfolio/capital_feasibility/audit.py",
+      "sha256": "c4c0bf09b5608530e3642347187da12aebf2ac7b35f5374e7a890b84982282a8",
+      "size": 285
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/capital_feasibility/capital_state.py",
+      "destination_path": "Phase3_Portfolio/capital_feasibility/capital_state.py",
+      "sha256": "e59dfd19f86073cab75e51353493948cf3056e46ce4627b2f8b5be3e9bccae36",
+      "size": 1651
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/capital_feasibility/config.py",
+      "destination_path": "Phase3_Portfolio/capital_feasibility/config.py",
+      "sha256": "7e59cae4a99b6f7aac514bedf91b8b66a670bb33814286699c445b9ce23fcfc5",
+      "size": 4292
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/capital_feasibility/engine.py",
+      "destination_path": "Phase3_Portfolio/capital_feasibility/engine.py",
+      "sha256": "3c69084b65642b48ddc5d9e77f655ea69d057d6265781f809bb5a5a42affa0a8",
+      "size": 10284
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/capital_feasibility/enums.py",
+      "destination_path": "Phase3_Portfolio/capital_feasibility/enums.py",
+      "sha256": "8cdf4b97eb7323b25d14b8484df8bf244cd2307a6aa0e4a934a5e018ada8e952",
+      "size": 4072
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/capital_feasibility/exceptions.py",
+      "destination_path": "Phase3_Portfolio/capital_feasibility/exceptions.py",
+      "sha256": "d449324d18d15fa3b375503807740215ac0f999ebd66000e80965cc8f9f1898d",
+      "size": 1838
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/capital_feasibility/explain.py",
+      "destination_path": "Phase3_Portfolio/capital_feasibility/explain.py",
+      "sha256": "65ef85137226acd969cb72a9d87c5e83ee50a0d6685fe36fecf00f505b922b2d",
+      "size": 4771
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/capital_feasibility/gates.py",
+      "destination_path": "Phase3_Portfolio/capital_feasibility/gates.py",
+      "sha256": "41af4cca5ca2863795af7b63f254a6f7c4bf3f6473b02577ac29c4b6b0aa5910",
+      "size": 11119
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/capital_feasibility/interfaces/__init__.py",
+      "destination_path": "Phase3_Portfolio/capital_feasibility/interfaces/__init__.py",
+      "sha256": "a4067168d0c751fd148fbadda781e503c3225cfb570b14331dbbd6162f2c36cd",
+      "size": 124
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/capital_feasibility/interfaces/providers.py",
+      "destination_path": "Phase3_Portfolio/capital_feasibility/interfaces/providers.py",
+      "sha256": "a7c77c05a2312e706eb3b3ca905674b0e817bd7c9d25345ef78f75ca6e51764a",
+      "size": 6931
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/capital_feasibility/max_quantity.py",
+      "destination_path": "Phase3_Portfolio/capital_feasibility/max_quantity.py",
+      "sha256": "bf59fbb8fb30cdb06e017785c2ada38f5030a78d5623d4d38aced72041e78569",
+      "size": 6633
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/capital_feasibility/models.py",
+      "destination_path": "Phase3_Portfolio/capital_feasibility/models.py",
+      "sha256": "474b012ff5934baef55ac46a0e54e2a8866ec8e3ee8f6c6e75256a0483d561b3",
+      "size": 7866
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/cost_model/__init__.py",
+      "destination_path": "Phase3_Portfolio/cost_model/__init__.py",
+      "sha256": "927f26a5733ed39b31bc51349ded3aafdaf3acdb7ad9718eb35fa28d1263dccb",
+      "size": 964
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/cost_model/breakeven.py",
+      "destination_path": "Phase3_Portfolio/cost_model/breakeven.py",
+      "sha256": "a1059faaab368a2ac9fe2ffd12e65d7660d8a62327d2095801ab47c8d4cfef43",
+      "size": 5184
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/cost_model/calculators.py",
+      "destination_path": "Phase3_Portfolio/cost_model/calculators.py",
+      "sha256": "30dab7b021dc483bc0f5cae8cdc6a1c7bbb070d1ac7c664465733215c7d62339",
+      "size": 5362
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/cost_model/config.py",
+      "destination_path": "Phase3_Portfolio/cost_model/config.py",
+      "sha256": "42190c10ed5c4278274cbaa28435fb00d5ae5316648f7a6e180c7b9cad70727a",
+      "size": 3525
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/cost_model/economics.py",
+      "destination_path": "Phase3_Portfolio/cost_model/economics.py",
+      "sha256": "92f942b801713141fe5ca60c0f0c57d15aab57dd7ca33e9afba55d70c951198a",
+      "size": 3368
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/cost_model/engine.py",
+      "destination_path": "Phase3_Portfolio/cost_model/engine.py",
+      "sha256": "ea0b78c3a51d6b7797fa3c461abbbc15b27ac8786475d32db3310388fcd6c0bb",
+      "size": 10420
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/cost_model/exceptions.py",
+      "destination_path": "Phase3_Portfolio/cost_model/exceptions.py",
+      "sha256": "b80ac98541ab122d924808bf5f217c8ba2c0b7764cedc30cc630ea8bf22d31f1",
+      "size": 1915
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/cost_model/fee_schedule.py",
+      "destination_path": "Phase3_Portfolio/cost_model/fee_schedule.py",
+      "sha256": "dfc71f7992b85dd36fdfebb0aef9db0c0133909b7dcfdb634464319875d3cdf5",
+      "size": 9125
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/cost_model/market_impact.py",
+      "destination_path": "Phase3_Portfolio/cost_model/market_impact.py",
+      "sha256": "c55a90ad35ee24dfabdb4e3703c48b2dbd133f118ab82d223d5b308fabf44863",
+      "size": 4303
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/cost_model/ml_interface.py",
+      "destination_path": "Phase3_Portfolio/cost_model/ml_interface.py",
+      "sha256": "97fd9a4f4c45197c4c2a3e9efa47c45d7c858fd556ef33fbc0b22754ce3c9cac",
+      "size": 2801
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/cost_model/models.py",
+      "destination_path": "Phase3_Portfolio/cost_model/models.py",
+      "sha256": "db2a17aa02e1d5518ec78ac9d723fda0f1e0cddc1a679f966160c9cdbd3327db",
+      "size": 8426
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/cost_model/operating_costs.py",
+      "destination_path": "Phase3_Portfolio/cost_model/operating_costs.py",
+      "sha256": "a23f6f7f2a46c79999d71bce6425e7ffd8923946524b2e71f15cf336af5e624c",
+      "size": 3444
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/cost_model/portfolio_interface.py",
+      "destination_path": "Phase3_Portfolio/cost_model/portfolio_interface.py",
+      "sha256": "232a8b8fee216b91ff1237c40225cc519c03e441b25e6d9b59480591a39c174e",
+      "size": 2569
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/cost_model/reconciliation.py",
+      "destination_path": "Phase3_Portfolio/cost_model/reconciliation.py",
+      "sha256": "ff6ac249f230d769a2ef56a8a2e57b707995c3aa1d52b561942c769385b6edd7",
+      "size": 3814
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/cost_model/scenarios.py",
+      "destination_path": "Phase3_Portfolio/cost_model/scenarios.py",
+      "sha256": "f03a1d4ce433ec94c12ddeab501efcf3cfb64a6f5b848f46bcdda915a3e34e51",
+      "size": 1830
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/cost_model/slippage.py",
+      "destination_path": "Phase3_Portfolio/cost_model/slippage.py",
+      "sha256": "d1b8b762e33b239011cbe97057e73e07bc9399995d8d6bd1c73a3965ec63bdb6",
+      "size": 5050
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/cost_model/validator.py",
+      "destination_path": "Phase3_Portfolio/cost_model/validator.py",
+      "sha256": "db67ca7e5dd65274a0b3d5a8bd6cf0fb45fcbbd22994694664ac7063992392d8",
+      "size": 2862
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/demo_phase3.py",
+      "destination_path": "Phase3_Portfolio/demo_phase3.py",
+      "sha256": "4e5869ab4e4870eaf95dc25e52e52348405c9443ada6d303fadf909270955612",
+      "size": 5324
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/docs/INTEGRATION.md",
+      "destination_path": "Phase3_Portfolio/docs/INTEGRATION.md",
+      "sha256": "58390c90838884b273bb6d8d09d7809d05517fcbd0d0e5d2fa6ecf1ac08b3d65",
+      "size": 9287
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/docs/VALIDATION.md",
+      "destination_path": "Phase3_Portfolio/docs/VALIDATION.md",
+      "sha256": "5800d57788d18ef5f6d43c579c91592424ff322730d5379151ae3b3780df3257",
+      "size": 4641
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/phase3/__init__.py",
+      "destination_path": "Phase3_Portfolio/phase3/__init__.py",
+      "sha256": "fc27080caf1692541b5d50f1584efc5683ea90203d171043b309b6bdff36e4f5",
+      "size": 2141
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/phase3/adapters.py",
+      "destination_path": "Phase3_Portfolio/phase3/adapters.py",
+      "sha256": "309e3a902c502c36f2a14f71cd09e5efc9fe80a4b31e83a0e7be29cf007fa8c0",
+      "size": 15001
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/phase3/config.py",
+      "destination_path": "Phase3_Portfolio/phase3/config.py",
+      "sha256": "3a4294937c3919ec862846ee4422dd14e57888173dded7bef90a866e4437e6a6",
+      "size": 7037
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/phase3/costs.py",
+      "destination_path": "Phase3_Portfolio/phase3/costs.py",
+      "sha256": "5b7c655690868521b81bb6e5b1307eb1b49eba7d06a86764e69e90cda85ed509",
+      "size": 8048
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/phase3/enums.py",
+      "destination_path": "Phase3_Portfolio/phase3/enums.py",
+      "sha256": "4a74ad06d8060577969502955a94f15de3e25e25cb2bb8e69dcfe768b5216659",
+      "size": 2244
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/phase3/ledger.py",
+      "destination_path": "Phase3_Portfolio/phase3/ledger.py",
+      "sha256": "3ac97d103d7baa2d8309faa03532e682c76716d8c73df5099bc347dd3cad29d5",
+      "size": 3428
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/phase3/models.py",
+      "destination_path": "Phase3_Portfolio/phase3/models.py",
+      "sha256": "ab626fa87f6034e35fcee8c5ff9c1e620fb5076b5e62b8050db104495f041a64",
+      "size": 8125
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/phase3/pipeline.py",
+      "destination_path": "Phase3_Portfolio/phase3/pipeline.py",
+      "sha256": "009c2ccff4bcf07fc091ff22c7efac99bb80cd44711c296cd6f316d2007d8619",
+      "size": 30059
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/phase3/regime.py",
+      "destination_path": "Phase3_Portfolio/phase3/regime.py",
+      "sha256": "55f89d2c692b51591b05acf06760248c21150f38e9ebbdd76525490f2fb9c6c1",
+      "size": 2174
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/phase3/serialization.py",
+      "destination_path": "Phase3_Portfolio/phase3/serialization.py",
+      "sha256": "eb0b18dfd646edb9fa49dc66ba3a294727e70141f155948ffbe2c7072f763d18",
+      "size": 5685
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_manager/__init__.py",
+      "destination_path": "Phase3_Portfolio/portfolio_manager/__init__.py",
+      "sha256": "f00c412030dbe07cc47b3ffb8232dd8e253ec41a343f5f58283765fb756d7bf7",
+      "size": 936
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_manager/api.py",
+      "destination_path": "Phase3_Portfolio/portfolio_manager/api.py",
+      "sha256": "030f768a3ae7d1932633c193736f59e0772bfff929031ed1f0624d00bd3bb2cb",
+      "size": 4149
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_manager/audit.py",
+      "destination_path": "Phase3_Portfolio/portfolio_manager/audit.py",
+      "sha256": "bb4c57742773ac40fcaee9af80954f2dcd875eb75c8f473acb1dc2098173ccae",
+      "size": 1209
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_manager/candidate.py",
+      "destination_path": "Phase3_Portfolio/portfolio_manager/candidate.py",
+      "sha256": "6b5ffe126835b1c6d96b65cfc570200233fe716677c6b4dc78a8106c3f828cd7",
+      "size": 2313
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_manager/config.py",
+      "destination_path": "Phase3_Portfolio/portfolio_manager/config.py",
+      "sha256": "a19fbde3de5ebf506772851911dc67aee9f582fd79474fb4257a4ec21afadfb3",
+      "size": 4555
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_manager/construction.py",
+      "destination_path": "Phase3_Portfolio/portfolio_manager/construction.py",
+      "sha256": "de2883066e3dc2a8623b516a42d79bcc94a48471ca4f5d70847f3e689963a09f",
+      "size": 8072
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_manager/correlation.py",
+      "destination_path": "Phase3_Portfolio/portfolio_manager/correlation.py",
+      "sha256": "1c628e0aa1cfc83ff43a8d7379e066872cf882ed194681a9f2e4bab5d15341c5",
+      "size": 3026
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_manager/decision.py",
+      "destination_path": "Phase3_Portfolio/portfolio_manager/decision.py",
+      "sha256": "415655365a31b8968aa3f7d70db0f33866adf7dd5582ef51b49dfaec4ea3b997",
+      "size": 1524
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_manager/decision_builder.py",
+      "destination_path": "Phase3_Portfolio/portfolio_manager/decision_builder.py",
+      "sha256": "0e2970fbfe7e7a255e48944d77fa0b8cf0b217bc82de6a8d4c662e950a9ee0bf",
+      "size": 5621
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_manager/enums.py",
+      "destination_path": "Phase3_Portfolio/portfolio_manager/enums.py",
+      "sha256": "b4e0c15f88a2cd3c7666e84b21face6784e5870f8a907f4449fb9b4247eff2a6",
+      "size": 3224
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_manager/exceptions.py",
+      "destination_path": "Phase3_Portfolio/portfolio_manager/exceptions.py",
+      "sha256": "2dae7811d2d608e31adc597e449cfeff56203dce239a0c7e33deb7ab18d6cf70",
+      "size": 551
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_manager/existing_positions.py",
+      "destination_path": "Phase3_Portfolio/portfolio_manager/existing_positions.py",
+      "sha256": "3e23093f8ee972e7e6ae711915a41c1afd3c2ff3755d4d2ff6436f46d7f98f77",
+      "size": 5821
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_manager/exposure.py",
+      "destination_path": "Phase3_Portfolio/portfolio_manager/exposure.py",
+      "sha256": "d39f6b0efb7da00c7fd5b0eda771cfa15d6f03e6d50af02f1e22986e733cfcde",
+      "size": 2179
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_manager/interfaces/__init__.py",
+      "destination_path": "Phase3_Portfolio/portfolio_manager/interfaces/__init__.py",
+      "sha256": "73ea4bb8cc7aacfbf3dd1c62403d26a4577e005e37822d7896fad73969a91378",
+      "size": 222
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_manager/interfaces/providers.py",
+      "destination_path": "Phase3_Portfolio/portfolio_manager/interfaces/providers.py",
+      "sha256": "c4254245f97ec67a724b0bf9698caab40ba48c697d2b075734afbe33e3b6491e",
+      "size": 1493
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_manager/normalization.py",
+      "destination_path": "Phase3_Portfolio/portfolio_manager/normalization.py",
+      "sha256": "799558ee56774c04ef82a2688e5d648840128accb30ca0adeefd50814adc905d",
+      "size": 863
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_manager/portfolio_state.py",
+      "destination_path": "Phase3_Portfolio/portfolio_manager/portfolio_state.py",
+      "sha256": "2b8625ef69692f01d719e69819ec1dd49a865459647ee162685838af05bf2785",
+      "size": 2923
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_manager/ranking.py",
+      "destination_path": "Phase3_Portfolio/portfolio_manager/ranking.py",
+      "sha256": "357fc4d3a15f799d5b71de401bce97fe1779ac6870967b2352d5c94af024edfd",
+      "size": 1176
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_manager/scoring.py",
+      "destination_path": "Phase3_Portfolio/portfolio_manager/scoring.py",
+      "sha256": "e1ddeaaa8b50a4d085121c09004755f76b3c5f769e9d917302ac0e89241cdf2b",
+      "size": 5811
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_manager/tests/__init__.py",
+      "destination_path": "Phase3_Portfolio/portfolio_manager/tests/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_manager/tests/factories.py",
+      "destination_path": "Phase3_Portfolio/portfolio_manager/tests/factories.py",
+      "sha256": "1ec75b9a586206c1410591bc2014b520f8695d8a3ed31607463234bcd91f6919",
+      "size": 3720
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_manager/tests/test_construction.py",
+      "destination_path": "Phase3_Portfolio/portfolio_manager/tests/test_construction.py",
+      "sha256": "1beac564093a32910fc926d11e4aec37a6c19c21494ab1fb479a11d55ea95569",
+      "size": 10031
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_manager/tests/test_edge_cases.py",
+      "destination_path": "Phase3_Portfolio/portfolio_manager/tests/test_edge_cases.py",
+      "sha256": "f671e1b8ec827883d081d1f88269e546c23fa9493afff301f1014e9969d4fc69",
+      "size": 3517
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_manager/validator.py",
+      "destination_path": "Phase3_Portfolio/portfolio_manager/validator.py",
+      "sha256": "30f173480e86d81ade79b18645c619a4132afd8f271629bb568b667bc7a409fb",
+      "size": 3609
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/README.md",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/README.md",
+      "sha256": "6a3ce208d7a57d0ce8230c93920ee7fe6255d40281dadbc7f2998bc7b6c6f122",
+      "size": 4408
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/__init__.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/__init__.py",
+      "sha256": "7a09ef63f21e737e74e5356e03f6cc7cf257dfcc7d88447771c6dec46bb4d5e2",
+      "size": 325
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/capital_utilization_engine.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/capital_utilization_engine.py",
+      "sha256": "e7cb1bfcc94d47e2446d085cbba8e658fb8c312640ed31d4c3d76b3be5b3858b",
+      "size": 1877
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/concentration_engine.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/concentration_engine.py",
+      "sha256": "3cd0c7611c6a168bdd957f827dde499fac96a777476610c6fe09b99c2128ff78",
+      "size": 2760
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/config.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/config.py",
+      "sha256": "043e3bca3e0febf2ca9d13087b5f1f22293221b14a8fcd98a93001f9f66ea331",
+      "size": 12281
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/correlation_engine.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/correlation_engine.py",
+      "sha256": "7f1188f5e2f606251f8ccf5015d389a306997abbd426f54ca534d13e4a241e2b",
+      "size": 4808
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/covariance_engine.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/covariance_engine.py",
+      "sha256": "86b51eb205c10b94daefd14a2e80a1c3875740366b63b3d5806cf5c41277cc7a",
+      "size": 7206
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/docs/INTEGRATION.md",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/docs/INTEGRATION.md",
+      "sha256": "be813aa77130c872df1bb76e802c71e0d20db101e18e8200e8ab8618b070816e",
+      "size": 7126
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/docs/LIMITATIONS.md",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/docs/LIMITATIONS.md",
+      "sha256": "8a48149d2054d40f383dceef41e3abeaeadb3f07c3db81bc7acf3749903a158b",
+      "size": 7222
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/docs/METHODOLOGY.md",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/docs/METHODOLOGY.md",
+      "sha256": "93b8ad88246e4d7b72fc6d4938ac71f5e07ce0846fddb6c8062273cb60923ded",
+      "size": 13951
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/docs/VALIDATION.md",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/docs/VALIDATION.md",
+      "sha256": "515f8d11cbcb0cf744bca081a21758916aba5755cfa0ade4c7d19080fe1b9f42",
+      "size": 6637
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/downside_risk_engine.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/downside_risk_engine.py",
+      "sha256": "07322b69e8c199905690e0fae05cdb71ea9deb1f078cd33e6c1f58bc0c4e4ea6",
+      "size": 3191
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/drawdown_engine.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/drawdown_engine.py",
+      "sha256": "870f0280fc8de00e64e8d7c4c18b50877575be235f5314b5bf54e3074452e732",
+      "size": 3849
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/examples/__init__.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/examples/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/examples/example_portfolio.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/examples/example_portfolio.py",
+      "sha256": "697983b620c4ca8dba8f2030b9b629c103c9bd3094b7a63080ee3f9452aa8883",
+      "size": 3677
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/expected_shortfall_engine.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/expected_shortfall_engine.py",
+      "sha256": "5f358d0ab489eab4ef792fc62e6a75d89d721cf039dae5f54c8676fc53f00628",
+      "size": 2200
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/liquidity_risk_engine.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/liquidity_risk_engine.py",
+      "sha256": "34d7817cb8d128eb7201c445688395c9c9e79f81c2940aa7b6d3a11077f12f8e",
+      "size": 2538
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/marginal_risk_engine.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/marginal_risk_engine.py",
+      "sha256": "2afa5629f75c5685f3aba5997c1eaa8258511536ee4973568df57e622f87e2e9",
+      "size": 3509
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/models.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/models.py",
+      "sha256": "9b9cd2270692a705c4457a5df1b6bbeb400a29395f5edc5bf1009a353b8f2be9",
+      "size": 5965
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/portfolio_risk_engine.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/portfolio_risk_engine.py",
+      "sha256": "d9c66337f247a5cb2c4f211ee66bf9315ffa0bdc3351dbfec0dbb99a7c85a77f",
+      "size": 17604
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/recommendation_engine.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/recommendation_engine.py",
+      "sha256": "a0a761e074f46be8a0bd7039607b0edf936aa821e2778f3f1695533571643ba4",
+      "size": 6533
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/risk_budget_engine.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/risk_budget_engine.py",
+      "sha256": "410ad66bc8cd300c2321ee1b2f38e7b45f730badf1a48ef738c878886fc3f850",
+      "size": 2001
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/risk_limit_engine.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/risk_limit_engine.py",
+      "sha256": "31e4f2d2b0080791d92733354dd3b01fe65d482df59edbdf1fd209230d1c7c80",
+      "size": 4286
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/schemas.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/schemas.py",
+      "sha256": "c7bf480a28e3e4a2504a740b5477d9c547ad98494960bde4e80e262d596b7110",
+      "size": 3167
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/scoring_engine.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/scoring_engine.py",
+      "sha256": "5eac8f2ed5f5605f55e837380fd1af288108c206fa20b617b0f9cfcb183104a1",
+      "size": 3346
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/sector_risk_engine.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/sector_risk_engine.py",
+      "sha256": "19304fbd1deb1fadce5a7966d853e03e6b2d0e05283fd090758ef50388523176",
+      "size": 2246
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/stop_loss_risk_engine.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/stop_loss_risk_engine.py",
+      "sha256": "ddf97bed064c29a79314abd4c3b88d9024a53d102fa1acc5c85da4ad69623e9f",
+      "size": 4279
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/stress_test_engine.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/stress_test_engine.py",
+      "sha256": "fd40d3dd794041a3b885a14c3f90330d62d1be2de088026147cb5412732bb4b4",
+      "size": 4279
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/tests/__init__.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/tests/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/tests/test_portfolio_risk.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/tests/test_portfolio_risk.py",
+      "sha256": "09746563e73d9b4db3d2112635c5f9357d3cc668376e996e672dc7bffb32e95c",
+      "size": 16933
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/trade_impact_engine.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/trade_impact_engine.py",
+      "sha256": "fd226190cb73760e9941f2f372ab577f9aa9e6f7cf486ea0d66ed578e2cc5680",
+      "size": 4035
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/validation.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/validation.py",
+      "sha256": "09210435b9f86233ece2482473bda3d24d95544e3cc27027406c8a79814b9732",
+      "size": 5095
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/portfolio_risk/var_engine.py",
+      "destination_path": "Phase3_Portfolio/portfolio_risk/var_engine.py",
+      "sha256": "8e31865ad37f373210a2d875c1a66fa3eb680742add93108ad0bbbf494f01219",
+      "size": 4124
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/position_sizing/__init__.py",
+      "destination_path": "Phase3_Portfolio/position_sizing/__init__.py",
+      "sha256": "11c293a5987835db38ab50c585a042493b8a6a94c26e1e614ddfabb653c176f5",
+      "size": 506
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/position_sizing/audit.py",
+      "destination_path": "Phase3_Portfolio/position_sizing/audit.py",
+      "sha256": "26e81ea93f0226753d5aeb8b33a04ddab183967d18c49bf759a2813ba2fa41f1",
+      "size": 1871
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/position_sizing/confidence.py",
+      "destination_path": "Phase3_Portfolio/position_sizing/confidence.py",
+      "sha256": "65bc2bd7744bd9450b3e0ef95930bec306283205225f9be51f5b15072fc6441e",
+      "size": 1156
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/position_sizing/config.py",
+      "destination_path": "Phase3_Portfolio/position_sizing/config.py",
+      "sha256": "ff02e63396139c94981faa3c825d82cb1b85c30f1eafe44cfe53bfdd5c5b205c",
+      "size": 3074
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/position_sizing/constraints.py",
+      "destination_path": "Phase3_Portfolio/position_sizing/constraints.py",
+      "sha256": "937f95efc1022b40b3d1f8aaeb0eb0db226c662a7c3c30d92fa97547cab004c6",
+      "size": 2959
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/position_sizing/engine.py",
+      "destination_path": "Phase3_Portfolio/position_sizing/engine.py",
+      "sha256": "3a33c0d58d8d1a7bd09f9863953e938b21af1435959cdf1ce771eab8653dc100",
+      "size": 13940
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/position_sizing/enums.py",
+      "destination_path": "Phase3_Portfolio/position_sizing/enums.py",
+      "sha256": "62ed9f15a031235e4945dabce927ad1a284411d4d85048785b8d4ed08a35c6d4",
+      "size": 1838
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/position_sizing/exceptions.py",
+      "destination_path": "Phase3_Portfolio/position_sizing/exceptions.py",
+      "sha256": "45ccc32425e9e72347f9356e613d733c7d395cce39d2d008b7b2e67577f8f15f",
+      "size": 933
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/position_sizing/expected_value.py",
+      "destination_path": "Phase3_Portfolio/position_sizing/expected_value.py",
+      "sha256": "a5b27af7bd3496db09c4f9b772cf3663ca24823473dc7dff86fe361268eb8dc7",
+      "size": 643
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/position_sizing/hybrid.py",
+      "destination_path": "Phase3_Portfolio/position_sizing/hybrid.py",
+      "sha256": "25c275dd2910e23226e2f4459f1f84cad6fb5396bc779ca69e7eb18bcca1eeb7",
+      "size": 835
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/position_sizing/interfaces/__init__.py",
+      "destination_path": "Phase3_Portfolio/position_sizing/interfaces/__init__.py",
+      "sha256": "8528c86da7985a701bbc1b1bc2b94aa3f9a7dab462ff66fa97bdafcbd6570dad",
+      "size": 509
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/position_sizing/kelly.py",
+      "destination_path": "Phase3_Portfolio/position_sizing/kelly.py",
+      "sha256": "3d3560a4dcbd3d17dd91bb034fd04c083a1f002ed0a14dcb5ccd510ddd2414cd",
+      "size": 1456
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/position_sizing/liquidity.py",
+      "destination_path": "Phase3_Portfolio/position_sizing/liquidity.py",
+      "sha256": "dcbf5345f6fc05dde8c61590e03fe3c3b5a37af9448fda0a76410cb924b183a6",
+      "size": 1382
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/position_sizing/models.py",
+      "destination_path": "Phase3_Portfolio/position_sizing/models.py",
+      "sha256": "b5e95dd27d24915bc9c98130c03114229857c32d9400b0750a3d140802dfb36d",
+      "size": 5622
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/position_sizing/regime.py",
+      "destination_path": "Phase3_Portfolio/position_sizing/regime.py",
+      "sha256": "6fdb01a34e31870e9595f40d1191ebe4835a378a17a838a03229781ea79aa16b",
+      "size": 642
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/position_sizing/report.py",
+      "destination_path": "Phase3_Portfolio/position_sizing/report.py",
+      "sha256": "15d01a33842298ae285c553932f04df0127b9d33b249e8fcba86e41c01f3da4e",
+      "size": 2458
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/position_sizing/risk_based.py",
+      "destination_path": "Phase3_Portfolio/position_sizing/risk_based.py",
+      "sha256": "1d7709c27fe3bd4de5356749076fe617ab34bc4f726d3d5366b4fa296694545e",
+      "size": 2651
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/position_sizing/rounding.py",
+      "destination_path": "Phase3_Portfolio/position_sizing/rounding.py",
+      "sha256": "e9db0059a52bdb8ab24cc55f2a5543e0611a8b457eb052c03433466e6b2ca1fc",
+      "size": 1196
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/position_sizing/scenarios.py",
+      "destination_path": "Phase3_Portfolio/position_sizing/scenarios.py",
+      "sha256": "bfd85cbd6ec198d0211b81a5ef77a81b76f8c2b8d4c12d6baf4660b74ebb95c8",
+      "size": 2485
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/position_sizing/sensitivity.py",
+      "destination_path": "Phase3_Portfolio/position_sizing/sensitivity.py",
+      "sha256": "0e3147f26a3705f7c6a76670a3112fa87841e18e5c453e6c9056cc985ed12276",
+      "size": 2707
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/position_sizing/validator.py",
+      "destination_path": "Phase3_Portfolio/position_sizing/validator.py",
+      "sha256": "8176747befb7a7f59aca5b255a88716203b3f63fe13056e3845b5d9d89b10cee",
+      "size": 1633
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/position_sizing/volatility.py",
+      "destination_path": "Phase3_Portfolio/position_sizing/volatility.py",
+      "sha256": "865d733f4b180e3ebaa7a179ac9f1513540230d66f7d9da2e450b9f9741d8ea2",
+      "size": 823
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/pytest.ini",
+      "destination_path": "Phase3_Portfolio/pytest.ini",
+      "sha256": "5e6b010ace6280885c26059b0298497ff1f3e24a066f0db47bc42f2f19569485",
+      "size": 122
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/run_tests.py",
+      "destination_path": "Phase3_Portfolio/run_tests.py",
+      "sha256": "28c0bc3a4c1bb57834bec62496ff2c6684c483f426cea62a2a17a573d3133308",
+      "size": 8921
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/schema.sql",
+      "destination_path": "Phase3_Portfolio/schema.sql",
+      "sha256": "4fd122487aeada46fbc796392aab183aa5305056f1bcec8c189004967265f124",
+      "size": 6441
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/tests/phase3_factories.py",
+      "destination_path": "Phase3_Portfolio/tests/phase3_factories.py",
+      "sha256": "ab79bef22284a07469a66915a38e38a98ace05ce054e483cdec736b69fe686e0",
+      "size": 4435
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/tests/test_phase3_adapters.py",
+      "destination_path": "Phase3_Portfolio/tests/test_phase3_adapters.py",
+      "sha256": "7db1e5d2e5ca74db96e91d8725aec459ac1f107fba74a5e85a4d4d8c0ec48c01",
+      "size": 9035
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/tests/test_phase3_pipeline.py",
+      "destination_path": "Phase3_Portfolio/tests/test_phase3_pipeline.py",
+      "sha256": "d0e50f67720f14f439be7f0eca267a9e84627cc102f579106935f0f2ef76404c",
+      "size": 10933
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/tests/test_phase3_real_cost_model.py",
+      "destination_path": "Phase3_Portfolio/tests/test_phase3_real_cost_model.py",
+      "sha256": "b783b6d2a04f15a5da31883e22a897099ee7ff7290c00b1baf3540addcdfd964",
+      "size": 12589
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/vendor_tests/capital_feasibility/conftest.py",
+      "destination_path": "Phase3_Portfolio/vendor_tests/capital_feasibility/conftest.py",
+      "sha256": "0ff836bd130e3b853a484cf343dcd8fa9a91bf0a18c12a46b4e96376c58b0308",
+      "size": 859
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/vendor_tests/capital_feasibility/factories.py",
+      "destination_path": "Phase3_Portfolio/vendor_tests/capital_feasibility/factories.py",
+      "sha256": "2940e6ed9e46f8beace71dce68d424a04f33ce21b8a0a57c877eda7df5c3fb7b",
+      "size": 4892
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/vendor_tests/capital_feasibility/test_capital_state.py",
+      "destination_path": "Phase3_Portfolio/vendor_tests/capital_feasibility/test_capital_state.py",
+      "sha256": "4a46edf9601c100458b74bbcc1d185e3252b01c2fa9eb2936f6360c51df44462",
+      "size": 3161
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/vendor_tests/capital_feasibility/test_edge_cases.py",
+      "destination_path": "Phase3_Portfolio/vendor_tests/capital_feasibility/test_edge_cases.py",
+      "sha256": "2eaec4cedd7a68c71b058b95cc6a72e5fcb5c601adeb258c71bafe03d7e0da60",
+      "size": 14007
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/vendor_tests/capital_feasibility/test_engine_integration.py",
+      "destination_path": "Phase3_Portfolio/vendor_tests/capital_feasibility/test_engine_integration.py",
+      "sha256": "fdedeac50f460c8931fa7feab8955e05b918c9036462d48895f3ae63052a18a6",
+      "size": 6500
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/vendor_tests/capital_feasibility/test_gates.py",
+      "destination_path": "Phase3_Portfolio/vendor_tests/capital_feasibility/test_gates.py",
+      "sha256": "23e6bf4130a46c84b375f413d8e7b0867b247070e9fc4564d06b8d1cd0e6490c",
+      "size": 6180
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/vendor_tests/capital_feasibility/test_invariants.py",
+      "destination_path": "Phase3_Portfolio/vendor_tests/capital_feasibility/test_invariants.py",
+      "sha256": "16a9a8c9752786b477f995636cb9fe625ce434feaff7724d56234d05271190f9",
+      "size": 4432
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/vendor_tests/capital_feasibility/test_max_quantity.py",
+      "destination_path": "Phase3_Portfolio/vendor_tests/capital_feasibility/test_max_quantity.py",
+      "sha256": "bb9e7655ad5dcda2601aaf3d6a5451c67f4d2b387c0ce8c41c7b10c90bbed10e",
+      "size": 6043
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/vendor_tests/capital_feasibility/test_provider_integration.py",
+      "destination_path": "Phase3_Portfolio/vendor_tests/capital_feasibility/test_provider_integration.py",
+      "sha256": "8cf4dcc57a4116482c54b8ef9f56aa7b351e4fc6d2fd398a5013895de400e174",
+      "size": 3278
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/vendor_tests/cost_model/test_cost_model.py",
+      "destination_path": "Phase3_Portfolio/vendor_tests/cost_model/test_cost_model.py",
+      "sha256": "50cdf75d4bbec7f343d5d2287620493fd486b0d4e64286781ea842603fc0743d",
+      "size": 15872
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/vendor_tests/position_sizing/__init__.py",
+      "destination_path": "Phase3_Portfolio/vendor_tests/position_sizing/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/vendor_tests/position_sizing/conftest.py",
+      "destination_path": "Phase3_Portfolio/vendor_tests/position_sizing/conftest.py",
+      "sha256": "b20d35d5c388cecf2c2b114c5d87c37bf70ecee6fb31cabde121c360e1f751fd",
+      "size": 1384
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/vendor_tests/position_sizing/test_components.py",
+      "destination_path": "Phase3_Portfolio/vendor_tests/position_sizing/test_components.py",
+      "sha256": "07af2da75ffc1338eb8c9bad5cd393d435cab0a0f16adc26fa444c7732b5ec78",
+      "size": 3274
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/vendor_tests/position_sizing/test_engine.py",
+      "destination_path": "Phase3_Portfolio/vendor_tests/position_sizing/test_engine.py",
+      "sha256": "f2ffbd76a80e598db3efb9c05f1f174f923af903503a6c0dc3db7063132aabd2",
+      "size": 7271
+    },
+    {
+      "source_path": "PHASE3ALLV/PHASE3V1/vendor_tests/position_sizing/test_scenarios_sensitivity.py",
+      "destination_path": "Phase3_Portfolio/vendor_tests/position_sizing/test_scenarios_sensitivity.py",
+      "sha256": "9abefe5cb2b10fc639723040cdf24c6767059bcf391345d98185e16340d97ba8",
+      "size": 1540
+    },
+    {
+      "source_path": "[authored for destination]",
+      "destination_path": "Phase2A_Execution/README.md",
+      "sha256": "851926d86aeca6ae3b04a60108ab0d699cdcf41ccdee3a818b203c6bd557adc7",
+      "size": 719
+    },
+    {
+      "source_path": "[authored for destination]",
+      "destination_path": "Phase2_Monitoring/README.md",
+      "sha256": "46a313dc698d255dd91a4a42add751d0fd7c1b11a0474dfb84420cf0a6b495d8",
+      "size": 450
+    },
+    {
+      "source_path": "[authored for destination]",
+      "destination_path": "Phase2B_CostPnL/README.md",
+      "sha256": "1a1fcbbe468e92c4c5870cc6ed8de649359ab8015fa819e2f2d600aa3eea8e07",
+      "size": 627
+    },
+    {
+      "source_path": "[authored for destination]",
+      "destination_path": "docs/EXTRACTION_MANIFEST.md",
+      "sha256": "94d563433d0b7b28bf064ef5b30235ba633a55f861c3f01dc9be614c8ccfcd80",
+      "size": 1662
+    }
+  ],
+  "excluded": [
+    "PHASE2 ALLV/PHASE2/.DS_Store",
+    "PHASE2 ALLV/PHASE2/COSTMODEL(CM)/.DS_Store",
+    "PHASE2 ALLV/PHASE2/MARKETREGIME(MR)/.DS_Store",
+    "PHASE2 ALLV/PHASE2/OPPOURTUNITYMODEL(OM)/.DS_Store",
+    "PHASE2 ALLV/PHASE2/RETURNMODEL(RM)/.DS_Store",
+    "PHASE2 ALLV/PHASE2/RISKMODEL(RKM)/.DS_Store"
+  ],
+  "rules": [
+    "No Phase 1 implementation claimed",
+    "No broker API added; Phase 2A remains placeholder",
+    "Exclude .DS_Store metadata",
+    "Copied source file contents unchanged"
+  ]
+}

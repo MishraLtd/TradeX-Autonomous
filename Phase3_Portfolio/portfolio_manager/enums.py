@@ -1,0 +1,113 @@
+"""All enumerations. Centralized so every module shares one vocabulary."""
+
+from enum import Enum
+
+
+class ValidationState(str, Enum):
+    """Generic tri/quad-state used instead of booleans wherever data can be
+    missing rather than merely false. UNKNOWN must never be silently treated
+    as VALID or as a neutral (e.g. zero) numeric value — see DESIGN PART 8/19."""
+
+    VALID = "VALID"
+    INVALID = "INVALID"
+    UNKNOWN = "UNKNOWN"
+    UNAVAILABLE = "UNAVAILABLE"
+
+
+class TradeType(str, Enum):
+    INTRADAY = "INTRADAY"
+    DELIVERY = "DELIVERY"
+
+
+class Strategy(str, Enum):
+    MOMENTUM = "MOMENTUM"
+    MEAN_REVERSION = "MEAN_REVERSION"
+    BREAKOUT = "BREAKOUT"
+    OTHER = "OTHER"
+
+
+class MarketRegime(str, Enum):
+    TRENDING = "TRENDING"
+    RANGING = "RANGING"
+    VOLATILE = "VOLATILE"
+    UNKNOWN = "UNKNOWN"
+
+
+class PositionStatus(str, Enum):
+    OPEN = "OPEN"
+    PENDING_EXIT = "PENDING_EXIT"
+    UNDER_REVIEW = "UNDER_REVIEW"
+
+
+class PortfolioStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    DEGRADED = "DEGRADED"
+    HALTED = "HALTED"
+
+
+class SystemStatus(str, Enum):
+    OK = "OK"
+    DEGRADED = "DEGRADED"
+    UNAVAILABLE = "UNAVAILABLE"
+
+
+class DecisionType(str, Enum):
+    NEW_PORTFOLIO = "NEW_PORTFOLIO"
+    ADD_POSITIONS = "ADD_POSITIONS"
+    MAINTAIN_PORTFOLIO = "MAINTAIN_PORTFOLIO"
+    REPLACE_CANDIDATE = "REPLACE_CANDIDATE"
+    REDUCE_EXPOSURE_REVIEW = "REDUCE_EXPOSURE_REVIEW"
+    EXIT_REVIEW = "EXIT_REVIEW"
+    HOLD_CASH = "HOLD_CASH"
+    NO_ACTION = "NO_ACTION"
+    DECISION_UNAVAILABLE = "DECISION_UNAVAILABLE"
+
+
+class ExistingPositionAction(str, Enum):
+    KEEP = "KEEP"
+    REPLACE_CANDIDATE = "REPLACE_CANDIDATE"
+    REDUCE_PRIORITY = "REDUCE_PRIORITY"
+    EXIT_REVIEW = "EXIT_REVIEW"
+    NO_ACTION = "NO_ACTION"
+
+
+class CandidateSelectionStatus(str, Enum):
+    SELECTED = "SELECTED"
+    REJECTED = "REJECTED"
+    PENDING = "PENDING"
+
+
+class RejectionReason(str, Enum):
+    DUPLICATE_SYMBOL = "DUPLICATE_SYMBOL"
+    HIGH_CORRELATION = "HIGH_CORRELATION"
+    SECTOR_OVERLAP = "SECTOR_OVERLAP"
+    STRATEGY_OVERLAP = "STRATEGY_OVERLAP"
+    LOW_MARGINAL_PORTFOLIO_VALUE = "LOW_MARGINAL_PORTFOLIO_VALUE"
+    POOR_REGIME_COMPATIBILITY = "POOR_REGIME_COMPATIBILITY"
+    LOW_COST_ADJUSTED_QUALITY = "LOW_COST_ADJUSTED_QUALITY"
+    LOW_CONFIDENCE = "LOW_CONFIDENCE"
+    STALE_SIGNAL = "STALE_SIGNAL"
+    ECONOMICALLY_INVALID = "ECONOMICALLY_INVALID"
+    INSUFFICIENT_DATA = "INSUFFICIENT_DATA"
+    EXCESSIVE_PORTFOLIO_REDUNDANCY = "EXCESSIVE_PORTFOLIO_REDUNDANCY"
+    MALFORMED_CANDIDATE = "MALFORMED_CANDIDATE"
+
+
+class HardConstraint(str, Enum):
+    """Constraints that make a candidate MUST_NOT_SELECT (DESIGN PART 12)."""
+
+    MALFORMED_CANDIDATE = "MALFORMED_CANDIDATE"
+    ECONOMICALLY_INVALID = "ECONOMICALLY_INVALID"
+    STALE_SIGNAL = "STALE_SIGNAL"
+    DUPLICATE_SYMBOL = "DUPLICATE_SYMBOL"
+    INVALID_SYSTEM_STATE = "INVALID_SYSTEM_STATE"
+
+
+class SoftPreference(str, Enum):
+    """Preferences that only penalize the contribution score (PREFER_NOT_SELECT)."""
+
+    HIGH_CORRELATION = "HIGH_CORRELATION"
+    SECTOR_CONCENTRATION = "SECTOR_CONCENTRATION"
+    STRATEGY_CONCENTRATION = "STRATEGY_CONCENTRATION"
+    WEAK_REGIME_FIT = "WEAK_REGIME_FIT"
+    LOW_CONFIDENCE = "LOW_CONFIDENCE"
