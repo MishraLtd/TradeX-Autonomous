@@ -1,0 +1,13 @@
+{
+  "stocks": {"NSE:DEMO": "0.05", "NSE:DEMO2": "0.05"},
+  "capital_limit": "10000",
+  "per_trade_limit": "2000",
+  "profit_pct": "2",
+  "stop_pct": "1",
+  "max_positions": 5,
+  "max_quote_age": 15,
+  "max_exit_attempts": 3,
+  "entry_timeout": 30,
+  "product": "CNC",
+  "fees": {"buy_bps": "15", "sell_bps": "15", "buy_fixed": "0", "sell_fixed": "20"}
+}

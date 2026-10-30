@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.env.*
+state/
+*.sqlite
+*.sqlite-*
+*.sqlite.lock
+config.live.json

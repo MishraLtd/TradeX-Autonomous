@@ -1,0 +1,26 @@
+name: Execution engine
+on:
+  push:
+  pull_request:
+jobs:
+  execution:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.11', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Lifecycle and recovery tests
+        working-directory: Phase2A_Execution
+        run: python -m unittest discover -s tests -v
+      - name: Install optional broker SDK
+        run: python -m pip install -r Phase2A_Execution/requirements-live.txt
+      - name: Broker SDK contract tests (no credentials or network orders)
+        working-directory: Phase2A_Execution
+        run: python -m unittest discover -s tests -p test_kite.py -v
+      - name: Paper round trips
+        working-directory: Phase2A_Execution
+        run: python demo.py
