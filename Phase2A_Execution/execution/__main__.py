@@ -5,6 +5,7 @@ import math
 import os
 import sys
 import time
+from datetime import datetime, timezone
 from .models import Config, dumps
 from .store import Store
 from .brokers import PaperBroker
@@ -21,6 +22,41 @@ def emit_alerts(health, previous):
         if key not in previous:
             print(dumps(dict(event="execution_alert", at=health["checked_at"], **alert)), file=sys.stderr, flush=True)
     return current
+
+
+def validate_account(args, cfg):
+    from .acceptance import analyze, collect, readonly_client, save_private
+    expected = args.expected_account or cfg.live_account_id
+    if not expected:
+        raise ValueError("Set live_account_id or --expected-account before account validation")
+    if args.expected_account and cfg.live_account_id and args.expected_account != cfg.live_account_id:
+        raise ValueError("Expected account conflicts with live_account_id")
+    previous = None
+    if args.previous:
+        with open(args.previous) as handle:
+            previous = json.load(handle)
+    if args.snapshot:
+        if args.live:
+            raise ValueError("Use either --live collection or --snapshot replay")
+        with open(args.snapshot) as handle:
+            saved = json.load(handle)
+        snapshot = saved.get("snapshot", saved)
+    else:
+        if not args.live:
+            raise ValueError("Account collection requires --live; offline analysis requires --snapshot")
+        missing = [name for name in ("KITE_API_KEY", "KITE_ACCESS_TOKEN") if not os.environ.get(name)]
+        if missing:
+            print(dumps(dict(status="BLOCKED", source="NOT_RUN", live_account_validated=False,
+                             missing_environment=missing, detail="Configure credentials securely in the local environment; do not paste them into chat.")))
+            return 2
+        client = readonly_client(os.environ["KITE_API_KEY"], os.environ["KITE_ACCESS_TOKEN"])
+        snapshot = collect(client, cfg, expected, order_ids=args.order_id, trigger_ids=args.trigger_id)
+    report = analyze(snapshot, cfg, expected, previous=previous, replay=bool(args.snapshot))
+    path = args.output or ("state/account-validation/" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") +
+                           str(time.time_ns()) + ".kite-evidence.json")
+    save_private(path, report)
+    print(dumps(dict({k: v for k, v in report.items() if k != "snapshot"}, report_path=path)))
+    return 0 if report["status"] == "EVIDENCE_COMPLETE" else 2
 
 
 def main(argv=None):
@@ -55,8 +91,17 @@ def main(argv=None):
     missing.add_argument("--confirmed-not-created", action="store_true")
     run = sub.add_parser("run", help="Poll orders and manage exits until interrupted")
     run.add_argument("--interval", type=float, default=5)
+    validate = sub.add_parser("validate-account", help="Collect read-only Kite account evidence, or replay a private capture")
+    validate.add_argument("--expected-account")
+    validate.add_argument("--order-id", action="append", default=[])
+    validate.add_argument("--trigger-id", action="append", default=[])
+    validate.add_argument("--previous", help="Earlier private capture for settlement comparison")
+    validate.add_argument("--snapshot", help="Offline replay only; cannot validate a live account")
+    validate.add_argument("--output", help="Private JSON report path; defaults to ignored state/account-validation")
     args = parser.parse_args(argv)
     cfg = Config.load(args.config)
+    if args.command == "validate-account":
+        return validate_account(args, cfg)  # no Engine/Store initialization or trading mutation
     store = Store(args.db)
     broker = None
     try:
@@ -84,7 +129,7 @@ def main(argv=None):
             from .kite import KiteBroker
             client = KiteConnect(api_key=os.environ["KITE_API_KEY"], timeout=10)
             client.set_access_token(os.environ["KITE_ACCESS_TOKEN"])
-            broker = KiteBroker(client, cfg.stocks, live=True)
+            broker = KiteBroker(client, cfg.stocks, live=True, expected_account=cfg.live_account_id)
         else:
             broker = PaperBroker(args.paper_db, cash=cfg.capital_limit, fees=cfg.fees)
         engine = Engine(cfg, store, broker)

@@ -21,6 +21,9 @@ jobs:
       - name: Broker SDK contract tests (no credentials or network orders)
         working-directory: Phase2A_Execution
         run: python -m unittest discover -s tests -p test_kite.py -v
+      - name: Read-only account validation contracts (synthetic data only)
+        working-directory: Phase2A_Execution
+        run: python -m unittest discover -s tests -p test_account.py -v
       - name: Paper round trips
         working-directory: Phase2A_Execution
         run: python demo.py

@@ -37,7 +37,7 @@ class KiteTests(unittest.TestCase):
             KiteBroker(self.client, {"NSE:DEMO": ".01"}, live=True, min_interval=0)
 
     def test_no_leverage_in_cash(self):
-        self.client.margins.return_value = {"available": {"cash": 100, "live_balance": 80, "collateral": 100000}}
+        self.client.margins.return_value = {"enabled": True, "net": 80, "available": {"cash": 100, "live_balance": 80, "collateral": 100000}}
         self.assertEqual(self.broker.available_cash(), 80)
 
     def test_quote_uses_actual_trade_time_not_receive_time(self):
@@ -50,7 +50,8 @@ class KiteTests(unittest.TestCase):
             self.broker.quote("NSE:DEMO")
 
     def test_holdings_and_todays_positions_reconciled(self):
-        self.client.holdings.return_value = [dict(exchange="NSE", tradingsymbol="DEMO", quantity=10, t1_quantity=2)]
+        self.client.holdings.return_value = [dict(exchange="NSE", tradingsymbol="DEMO", product="CNC",
+            quantity=7, t1_quantity=2, used_quantity=3, opening_quantity=12)]
         self.client.positions.return_value = {"net": [dict(exchange="NSE", tradingsymbol="DEMO", product="CNC", quantity=-3)]}
         self.broker.assert_inventory("NSE:DEMO", 9, [])
         with self.assertRaises(ValueError):

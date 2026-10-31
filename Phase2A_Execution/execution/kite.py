@@ -12,18 +12,22 @@ from zoneinfo import ZoneInfo
 import time
 from .models import Quote, Order, dec
 from .protection import Protection, ProtectionSpec
+from .account import cash_available, check_profile, inventory
 
 
 class KiteBroker:
     protection_required = True
     supports_emergency_exit = True  # SELL submission uses broker market_protection=-1
 
-    def __init__(self, client, stocks, *, live=False, min_interval=0.35):
+    def __init__(self, client, stocks, *, live=False, min_interval=0.35, expected_account=None):
         if not live:
             raise ValueError("Live broker requires explicit live=True")
         self.client = client
+        self.stocks, self.expected_account = stocks, expected_account
         self.min_interval, self._last_call, self._last_quote = min_interval, 0.0, 0.0
         self.identity = "kite:" + self._call(client.profile)["user_id"]
+        if expected_account is not None and self.identity != "kite:" + expected_account:
+            raise ValueError("Kite account does not match the configured account ID")
         for exchange in {s.split(":")[0] for s in stocks}:
             instruments = {r["tradingsymbol"]: r for r in self._call(client.instruments, exchange)}
             for stock, tick in stocks.items():
@@ -40,9 +44,15 @@ class KiteBroker:
         return method(*args, **kwargs)
 
     def available_cash(self):
-        available = self._call(self.client.margins, "equity")["available"]
-        # Use cash, never collateral or leverage.
-        return max(dec(0), min(dec(available["cash"]), dec(available.get("live_balance", available["cash"]))))
+        return cash_available(self._call(self.client.margins, "equity"))
+
+    def assert_entry_ready(self):
+        if not self.expected_account:
+            raise ValueError("Configure live_account_id before requesting a new live entry")
+        profile = self._call(self.client.profile)
+        check_profile(profile, self.stocks, self.expected_account)
+        if self.identity != "kite:" + profile["user_id"]:
+            raise ValueError("Broker account changed during this session")
 
     def quote(self, stock):
         time.sleep(max(0, (1.05 if self.min_interval else 0) - (time.monotonic() - self._last_quote)))
@@ -87,13 +97,8 @@ class KiteBroker:
     def assert_inventory(self, stock, expected, own_order_ids):
         def match(row):
             return row["exchange"] + ":" + row["tradingsymbol"] == stock
-        # Holdings are settled + T1 opening stock; net CNC positions include today's buys/sells.
-        holdings = sum(int(r["quantity"]) + int(r.get("t1_quantity", 0))
-                       for r in self._call(self.client.holdings) if match(r))
-        positions = self._call(self.client.positions)["net"]
-        if any(match(r) and r["product"] != "CNC" and r["quantity"] for r in positions):
-            raise ValueError("External/non-CNC position on managed stock")
-        owned = holdings + sum(int(r["quantity"]) for r in positions if match(r) and r["product"] == "CNC")
+        snapshot = inventory(stock, self._call(self.client.holdings), self._call(self.client.positions))
+        owned = snapshot["owned"]
         if owned != expected:
             raise ValueError(f"Inventory mismatch for {stock}: broker={owned}, engine={expected}")
         for row in self._call(self.client.orders):
@@ -145,11 +150,15 @@ class KiteBroker:
 
     def protection(self, trigger_id):
         row = self._call(self.client.get_gtt, trigger_id)
+        return self.decode_protection(row, trigger_id)
+
+    @staticmethod
+    def decode_protection(row, trigger_id):
         if str(row["id"]) != str(trigger_id):
             raise ValueError("Unexpected GTT ID")
         orders = row["orders"]
         values = row["condition"]["trigger_values"]
-        stock = self._gtt_stock(row)
+        stock = KiteBroker._gtt_stock(row)
         if row["type"] != "two-leg" or len(orders) != 2 or len(values) != 2:
             raise ValueError("Expected two-leg GTT")
         for o in orders:

@@ -8,3 +8,4 @@ state/
 *.sqlite-*
 *.sqlite.lock
 config.live.json
+*.kite-evidence.json

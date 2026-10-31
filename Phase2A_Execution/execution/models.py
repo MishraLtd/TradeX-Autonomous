@@ -70,6 +70,7 @@ class Config:
     max_cancel_attempts: int = 3
     health_max_age: float = 30
     emergency_exit_policy: str = "BROKER_PROTECTED_MARKET"
+    live_account_id: str | None = None
 
     def __post_init__(self):
         if not self.stocks:
@@ -91,6 +92,9 @@ class Config:
             raise ValueError("Stop-limit buffer must be in [0, 100)")
         if self.emergency_exit_policy not in ("BROKER_PROTECTED_MARKET", "WAIT_FOR_FRESH_QUOTE"):
             raise ValueError("Invalid emergency exit policy")
+        if self.live_account_id is not None and (not isinstance(self.live_account_id, str) or
+                not re.fullmatch(r"[A-Za-z0-9]{3,32}", self.live_account_id)):
+            raise ValueError("Invalid live_account_id")
         for value in (self.max_positions, self.max_exit_attempts, self.max_cancel_attempts):
             if type(value) is not int or value < 1:
                 raise ValueError("Counts must be positive integers")

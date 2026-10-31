@@ -49,6 +49,8 @@ class Engine:
                 raise ValueError("New entries are paused; existing exits continue")
             if stock not in cfg.stocks:
                 raise ValueError("Stock is outside the approved universe")
+            if hasattr(self.broker, "assert_entry_ready"):
+                self.broker.assert_entry_ready()
             active = [t for t in trades if t["state"] not in ("CLOSED", "NO_FILL")]
             if any(t["stock"] == stock for t in active):
                 raise ValueError("Stock already has an active entry or position")

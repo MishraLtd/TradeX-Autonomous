@@ -42,6 +42,7 @@ deadline-based cancellation, confirmed residual sizing, and a replacement exit.
 - Restart reconciliation, duplicate request protection and ambiguous-order handling.
 - Pause/resume, flatten, status, JSON journal, and execution health beyond heartbeat.
 - Persistent paper broker and optional explicitly enabled Kite CNC equity adapter.
+- Read-only Kite account acceptance reports, explicit account binding and corrected delivery-inventory reconciliation.
 - Lifecycle/recovery tests and GitHub Actions checks.
 
 ## Status and boundaries
@@ -49,7 +50,9 @@ deadline-based cancellation, confirmed residual sizing, and a replacement exit.
 Paper mode is the default. The Kite adapter is implemented and tested with mocked
 API responses and the installed SDK; no live account/order validation has been
 performed. It requires your approved symbols, fee assumptions, broker credentials
-and deployment setup. Protection starts after the entry is terminal and the GTT
+and deployment setup. The [account acceptance guide](Phase2A_Execution/ACCOUNT_ACCEPTANCE.md)
+provides a GET-only validation command; real-account evidence is still pending.
+Protection starts after the entry is terminal and the GTT
 has been registered and verified; the fill-to-registration window is unprotected.
 GTTs are broker-held triggers that submit limit orders, not guaranteed exits:
 a gap through the limit can leave an order unfilled, and the sibling trigger is

@@ -66,6 +66,7 @@ schedule. Copy it to ignored `config.live.json` when configuring a real account.
 | `retry_interval` | Minimum seconds between cancellation requests and cooldown after confirming a terminal sell before replacing it (default 5). |
 | `emergency_exit_policy` | `BROKER_PROTECTED_MARKET` permits confirmed exits through a capable broker when local quotes fail; `WAIT_FOR_FRESH_QUOTE` requires a fresh quote. |
 | `health_max_age` | Maximum heartbeat/reconciliation age for the read-only health check (default 30 seconds). |
+| `live_account_id` | Exact expected Kite user ID, required before new live entries. Leave null in paper mode. |
 
 Money uses `Decimal`. Tick size, fees, target, stop, exit mode and stop-limit
 buffer are snapshotted per trade; restarting with new percentages does not move
@@ -308,9 +309,17 @@ are resolved and existing exposure has been reconciled.
 
 ## Optional Kite connection
 
+Follow the [account acceptance guide](ACCOUNT_ACCEPTANCE.md) before relying on a
+live account. The read-only `validate-account` command checks actual account
+responses and records missing execution/settlement evidence. Synthetic tests do
+not establish live acceptance; real-account validation remains pending until
+those observations are collected and reviewed.
+
 ```bash
 python -m pip install -r requirements-live.txt
 # Set KITE_API_KEY and KITE_ACCESS_TOKEN securely in the worker environment.
+# Set live_account_id and approved real instruments in config.live.json.
+python -m execution --config config.live.json --live validate-account
 python -m execution --config config.live.json --db state/live.sqlite --live run
 ```
 
