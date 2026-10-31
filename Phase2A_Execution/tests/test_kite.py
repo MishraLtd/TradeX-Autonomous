@@ -168,6 +168,26 @@ class KiteTests(unittest.TestCase):
         self.broker.cancel_protection("123")
         self.client.delete_gtt.assert_called_once_with("123")
 
+    def test_order_preserves_broker_placement_time_and_rejection_reason(self):
+        row = dict(order_id="child", tag=None, exchange="NSE", tradingsymbol="DEMO", transaction_type="SELL",
+                   quantity=3, filled_quantity=0, average_price=0, status="REJECTED",
+                   order_timestamp="2026-10-30 15:20:00", status_message="Rejected", status_message_raw="Sell authorization missing")
+        self.client.order_history.return_value = [row]
+        order = self.broker.order("child")
+        order.check()
+        self.assertEqual(order.placed_at, datetime(2026, 10, 30, 9, 50, tzinfo=timezone.utc).timestamp())
+        self.assertEqual(order.message, "Sell authorization missing")
+        row["order_timestamp"] = datetime(2026, 10, 30, 9, 50, tzinfo=timezone.utc)
+        self.assertEqual(self.broker.order("child").placed_at, order.placed_at)
+
+    def test_emergency_sell_uses_broker_protection_without_local_quote(self):
+        self.client.quote.side_effect = AssertionError("Emergency adapter submission must not need a local quote")
+        self.assertTrue(self.broker.supports_emergency_exit)
+        self.broker.submit("NSE:DEMO", "SELL", 3, "tag")
+        args = self.client.place_order.call_args.kwargs
+        self.assertEqual((args["order_type"], args["validity"], args["market_protection"]), ("MARKET", "IOC", -1))
+        self.assertNotIn("price", args)
+
 
 if __name__ == "__main__":
     unittest.main()

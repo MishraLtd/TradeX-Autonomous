@@ -63,6 +63,13 @@ class Config:
     product: str = "CNC"
     exit_mode: str = "BROKER_OCO"
     stop_limit_buffer_pct: str = "0.5"
+    exit_timeout: float = 30
+    cancel_timeout: float = 15
+    submission_timeout: float = 30
+    retry_interval: float = 5
+    max_cancel_attempts: int = 3
+    health_max_age: float = 30
+    emergency_exit_policy: str = "BROKER_PROTECTED_MARKET"
 
     def __post_init__(self):
         if not self.stocks:
@@ -82,10 +89,13 @@ class Config:
             raise ValueError("exit_mode must be BROKER_OCO or SOFTWARE (paper only)")
         if not 0 <= dec(self.stop_limit_buffer_pct) < 100:
             raise ValueError("Stop-limit buffer must be in [0, 100)")
-        for value in (self.max_positions, self.max_exit_attempts):
+        if self.emergency_exit_policy not in ("BROKER_PROTECTED_MARKET", "WAIT_FOR_FRESH_QUOTE"):
+            raise ValueError("Invalid emergency exit policy")
+        for value in (self.max_positions, self.max_exit_attempts, self.max_cancel_attempts):
             if type(value) is not int or value < 1:
                 raise ValueError("Counts must be positive integers")
-        for value in (self.max_quote_age, self.entry_timeout):
+        for value in (self.max_quote_age, self.entry_timeout, self.exit_timeout, self.cancel_timeout,
+                      self.submission_timeout, self.retry_interval, self.health_max_age):
             if not math.isfinite(value) or value <= 0:
                 raise ValueError("Timeouts must be finite and positive")
 
@@ -118,12 +128,16 @@ class Order:
     filled: int
     average: Decimal
     status: str
+    placed_at: float | None = None
+    message: str | None = None
 
     @property
     def terminal(self):
         return self.status in ("COMPLETE", "CANCELLED", "REJECTED")
 
     def check(self):
+        if self.placed_at is not None and (not math.isfinite(self.placed_at) or self.placed_at <= 0):
+            raise ValueError("Invalid broker order timestamp")
         if self.quantity < 1 or not 0 <= self.filled <= self.quantity:
             raise ValueError("Invalid broker quantities")
         if self.filled:

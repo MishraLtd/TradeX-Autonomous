@@ -6,12 +6,14 @@ import uuid
 
 from .models import Fees, Order, dec, positive, exit_levels
 from .protection import ProtectionManager
+from .supervision import Supervisor, health_snapshot, policy, trade_alerts
 
 
 class Engine:
     def __init__(self, config, store, broker, clock=time.time):
         self.config, self.store, self.broker, self.clock = config, store, broker, clock
-        self.protection = ProtectionManager(broker, store, clock)
+        self.supervisor = Supervisor(config, store, clock)
+        self.protection = ProtectionManager(broker, store, clock, self.supervisor)
         if getattr(broker, "protection_required", False) and config.exit_mode != "BROKER_OCO":
             raise ValueError("Live execution requires BROKER_OCO protection")
         with store.locked():
@@ -52,6 +54,8 @@ class Engine:
                 raise ValueError("Stock already has an active entry or position")
             if any(t.get("error") or any(o["status"] == "UNKNOWN" for o in t["orders"]) for t in active):
                 raise ValueError("Resolve outstanding broker uncertainty before new entries")
+            if any(trade_alerts(cfg, t, self.clock()) for t in active):
+                raise ValueError("Resolve execution alerts before new entries")
             for t in active:
                 p = t.get("protection", {})
                 if self._broker_exits(t) and (p.get("health") != "ACTIVE" or
@@ -85,6 +89,7 @@ class Engine:
                          exit_mode=cfg.exit_mode, stop_limit_buffer_pct=cfg.stop_limit_buffer_pct,
                          created=self.clock(), target=None, stop=None)
             self.store.save(trade, "ENTRY_ACCEPTED")
+            self.supervisor.prepare(trade)
             self._place(trade, "BUY", quantity, limit)
             # Reduce the fill-to-protection gap for immediate IOC fills; later
             # broker updates are still reconciled by the worker.
@@ -92,9 +97,10 @@ class Engine:
                 try:
                     self._progress(trade)
                 except Exception as exc:
-                    trade["error"] = str(exc)
+                    trade["error"] = f"{type(exc).__name__}: {exc}"
                     self.store.set("paused", True)
-                self.store.save(trade, "ENTRY_PROTECTION_CHECK")
+            self.supervisor.observe(trade)
+            self.store.save(trade, "ENTRY_PROTECTION_CHECK")
             return trade
 
     def _place(self, trade, side, quantity, limit=None):
@@ -108,6 +114,7 @@ class Engine:
         record = dict(id="", tag=tag, stock=trade["stock"], side=side,
                       quantity=quantity, filled=0, average="0", status="UNKNOWN",
                       submitted=self.clock())
+        self.supervisor.prepare_order(trade, record)
         trade["orders"].append(record)
         # Persist intent BEFORE the network call. An ambiguous call is NEVER blindly retried.
         self.store.save(trade, "ORDER_INTENT")
@@ -135,15 +142,38 @@ class Engine:
             if order.filled < record["filled"]:
                 raise RuntimeError("Broker fill quantity moved backwards")
             record.update(asdict(order))
+            self.supervisor.prepare_order(trade, record)
             self.store.save(trade, "ORDER_RECONCILED")
 
+    def _exit_quote(self, trade):
+        try:
+            quote = self.broker.quote(trade["stock"])
+            quote.check(self.clock(), self.config.max_quote_age)
+        except Exception as exc:
+            allowed = (bool(trade["reason"]) and
+                       policy(self.config, trade)["emergency_exit_policy"] == "BROKER_PROTECTED_MARKET" and
+                       getattr(self.broker, "supports_emergency_exit", False))
+            trade["exit_feed"] = dict(state="UNAVAILABLE", checked_at=self.clock(),
+                                      error=f"{type(exc).__name__}: {exc}", emergency_allowed=allowed)
+            if not allowed:
+                raise
+            # This path sends a broker-protected market order, never a limit
+            # calculated from an old price. Ownership checks already succeeded.
+            self.store.save(trade, "EMERGENCY_EXIT_WITHOUT_LOCAL_QUOTE")
+            return None
+        trade["exit_feed"] = dict(state="FRESH", checked_at=self.clock(), quote_at=quote.timestamp)
+        trade["last_price"] = str(quote.price)
+        return quote
+
     def _progress(self, trade):
+        self.supervisor.prepare(trade)
+        rules = policy(self.config, trade)
         remote = self.protection.sync(trade)
         self._refresh(trade)
         buy = trade["orders"][0]
         if buy["status"] not in ("COMPLETE", "CANCELLED", "REJECTED"):
-            if buy["filled"] or self.clock() - buy["submitted"] >= self.config.entry_timeout or trade["reason"]:
-                self.broker.cancel(buy["id"])
+            if buy["filled"] or self.clock() >= buy["deadline"] or trade["reason"]:
+                self.supervisor.cancel(trade, buy, "ORDER", lambda: self.broker.cancel(buy["id"]))
             return  # cancellation must be confirmed before any sell can be sized
         if not buy["filled"]:
             trade["state"], trade["reserved"] = "NO_FILL", "0"
@@ -178,10 +208,12 @@ class Engine:
         exits = [o for o in trade["orders"] if o["side"] == "SELL"]
         if any(o["status"] not in ("COMPLETE", "CANCELLED", "REJECTED") for o in exits):
             trade["state"] = "EXITING"
-            if trade["reason"] == "OPERATOR_EXIT":
-                for o in exits:
-                    if o.get("protection_id") and o["status"] not in ("COMPLETE", "CANCELLED", "REJECTED"):
-                        self.broker.cancel(o["id"])
+            for o in exits:
+                if o["status"] not in ("COMPLETE", "CANCELLED", "REJECTED"):
+                    if trade["reason"] == "OPERATOR_EXIT" or self.clock() >= o["deadline"]:
+                        trade["exit_escalated"] = True
+                        self.store.set("paused", True)
+                        self.supervisor.cancel(trade, o, "ORDER", lambda: self.broker.cancel(o["id"]))
             return
         if remote is not None:
             if remote.status == "active":
@@ -202,12 +234,17 @@ class Engine:
             if not trade["reason"]:
                 self.store.set("paused", True)
                 trade["reason"] = "PROTECTION_LOST"
+        if trade["reason"] and exits:
+            if len(exits) >= rules["max_exit_attempts"] + trade.get("extra_attempts", 0):
+                raise RuntimeError("Exit attempts exhausted; reconcile broker rejection before retry-exit")
+            trade["next_exit_at"] = max(o["terminal_at"] for o in exits) + rules["retry_interval"]
+            if self.clock() < trade["next_exit_at"]:
+                trade["state"] = "EXITING"
+                return
         # Check broker ownership immediately before deciding to sell. Never sell unrelated holdings.
         self.broker.assert_inventory(trade["stock"], remaining, [o["id"] for o in trade["orders"]])
         self.broker.assert_no_protection(trade["stock"], self.protection.owned_ids(trade["stock"]))
-        quote = self.broker.quote(trade["stock"])
-        quote.check(self.clock(), self.config.max_quote_age)
-        trade["last_price"] = str(quote.price)
+        quote = self._exit_quote(trade)
         if not trade["reason"]:
             if dec(quote.price) <= dec(trade["stop"]):
                 trade["reason"] = "STOP_LOSS"
@@ -221,7 +258,7 @@ class Engine:
             trade["state"] = "OPEN" if protected.status == "active" else "EXITING"
             return
         if trade["reason"]:
-            if len(exits) >= self.config.max_exit_attempts + trade.get("extra_attempts", 0):
+            if len(exits) >= rules["max_exit_attempts"] + trade.get("extra_attempts", 0):
                 raise RuntimeError("Exit attempts exhausted; reconcile broker rejection before retry-exit")
             trade["state"] = "EXITING"
             self._place(trade, "SELL", remaining)
@@ -242,18 +279,23 @@ class Engine:
                     else:
                         self._progress(trade)
                 except Exception as exc:
-                    trade["error"] = str(exc)
+                    trade["error"] = f"{type(exc).__name__}: {exc}"
                     self.store.set("paused", True)
+                self.supervisor.observe(trade)
                 self.store.save(trade, "TICK")
             self.store.set("heartbeat", self.clock())
             return self.store.all()
 
     def pause(self, paused=True):
         with self.store.locked():
-            if not paused and any(t.get("error") for t in self.store.all()
+            if not paused and any(t.get("error") or trade_alerts(self.config, t, self.clock()) for t in self.store.all()
                                   if t["state"] not in ("CLOSED", "NO_FILL")):
-                raise ValueError("Resolve active errors before resuming")
+                raise ValueError("Resolve active errors and execution alerts before resuming")
             self.store.set("paused", paused)
+
+    def health(self):
+        with self.store.locked():
+            return health_snapshot(self.store, self.config, self.clock())
 
     def flatten(self, request_id=None):
         """Pause new entries and request exits; pending buys are cancelled first."""

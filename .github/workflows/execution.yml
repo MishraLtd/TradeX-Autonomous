@@ -24,3 +24,6 @@ jobs:
       - name: Paper round trips
         working-directory: Phase2A_Execution
         run: python demo.py
+      - name: Stalled exit recovery
+        working-directory: Phase2A_Execution
+        run: python demo_recovery.py

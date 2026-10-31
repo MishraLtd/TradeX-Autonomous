@@ -52,8 +52,9 @@ class Protection:
 
 
 class ProtectionManager:
-    def __init__(self, broker, store, clock):
+    def __init__(self, broker, store, clock, supervisor):
         self.broker, self.store, self.clock = broker, store, clock
+        self.supervisor = supervisor
 
     def owned_ids(self, stock):
         return [t["protection"]["id"] for t in self.store.all()
@@ -90,6 +91,7 @@ class ProtectionManager:
                 raise RuntimeError("GTT child identity mismatch")
             record = asdict(child)
             record.update(protection_id=remote.id, submitted=self.clock())
+            self.supervisor.prepare_order(trade, record)
             trade["orders"].append(record)
             self.store.save(trade, "GTT_CHILD_ADOPTED")
         # Once a child is known, the association must never disappear from the
@@ -144,10 +146,8 @@ class ProtectionManager:
             raise RuntimeError("Cannot cancel an unidentified GTT")
         saved["cancel_requested"] = True
         saved["health"] = "CANCELLING"
-        self.store.save(trade, "GTT_CANCEL_INTENT")
-        self.broker.cancel_protection(saved["id"])
+        self.supervisor.cancel(trade, saved, "GTT", lambda: self.broker.cancel_protection(saved["id"]))
         # The next cycle MUST fetch status and any racing child before selling.
-        self.store.save(trade, "GTT_CANCEL_SENT")
 
     def adopt(self, trade, trigger_id):
         saved = trade.get("protection")

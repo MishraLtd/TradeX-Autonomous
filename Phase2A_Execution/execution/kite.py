@@ -16,6 +16,7 @@ from .protection import Protection, ProtectionSpec
 
 class KiteBroker:
     protection_required = True
+    supports_emergency_exit = True  # SELL submission uses broker market_protection=-1
 
     def __init__(self, client, stocks, *, live=False, min_interval=0.35):
         if not live:
@@ -59,9 +60,17 @@ class KiteBroker:
 
     @staticmethod
     def _order(row):
+        placed = row.get("order_timestamp")
+        if placed is not None:
+            if isinstance(placed, str):
+                placed = datetime.fromisoformat(placed)
+            if placed.tzinfo is None:
+                placed = placed.replace(tzinfo=ZoneInfo("Asia/Kolkata"))
+            placed = placed.timestamp()
         return Order(str(row["order_id"]), row.get("tag") or "",
                      row["exchange"] + ":" + row["tradingsymbol"], row["transaction_type"],
-                     int(row["quantity"]), int(row["filled_quantity"]), dec(row["average_price"]), row["status"])
+                     int(row["quantity"]), int(row["filled_quantity"]), dec(row["average_price"]), row["status"],
+                     placed, row.get("status_message_raw") or row.get("status_message"))
 
     def order(self, order_id):
         history = self._call(self.client.order_history, order_id)

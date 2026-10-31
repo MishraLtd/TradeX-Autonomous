@@ -102,7 +102,9 @@ class ExecutionTests(unittest.TestCase):
         t = self.enter()
         self.broker.max_fill = 3
         self.broker.set_quote("NSE:DEMO", t["target"])
-        for _ in range(5):
+        for _ in range(6):
+            self.now += self.cfg.retry_interval
+            self.broker.set_quote("NSE:DEMO", t["target"])
             result = self.engine.tick()[0]
         self.assertEqual(result["state"], "CLOSED")
         self.assertEqual([o.quantity for o in self.broker._orders() if o.side == "SELL"], [9, 6, 3])
@@ -222,7 +224,9 @@ class ExecutionTests(unittest.TestCase):
         t = self.enter()
         self.broker.max_fill = 0
         self.broker.set_quote("NSE:DEMO", t["target"])
-        for _ in range(5):
+        for _ in range(7):
+            self.now += self.cfg.retry_interval
+            self.broker.set_quote("NSE:DEMO", t["target"])
             result = self.engine.tick()[0]
         self.assertIn("exhausted", result["error"])
         self.assertEqual(len(self.broker._orders()), 4)

@@ -1,5 +1,5 @@
 """Broker contract and persistent deterministic paper execution."""
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from decimal import Decimal
 import json
 from pathlib import Path
@@ -14,6 +14,7 @@ from .protection import Protection, ProtectionSpec
 class Broker(Protocol):
     identity: str
     protection_required: bool
+    supports_emergency_exit: bool
     def quote(self, stock) -> Quote: ...
     def available_cash(self) -> Decimal: ...
     def assert_inventory(self, stock, expected, own_order_ids): ...
@@ -35,6 +36,7 @@ class PaperBroker:
     Broker orders survive engine crashes independently of the engine database.
     """
     protection_required = False
+    supports_emergency_exit = False  # paper fills still require a fresh injected price
 
     def __init__(self, path, cash="10000", fees=None, clock=time.time, max_fill=None, slippage_bps="0"):
         path = Path(path).resolve()
@@ -120,7 +122,8 @@ class PaperBroker:
             if status != "REJECTED" and filled < quantity:
                 status = "CANCELLED"
             cash += (-value if side == "BUY" else value) - charges
-            order = Order(uuid.uuid4().hex, tag, stock, side, quantity, filled, price if filled else Decimal(0), status)
+            order = Order(uuid.uuid4().hex, tag, stock, side, quantity, filled, price if filled else Decimal(0),
+                          status, self.clock(), "Paper inventory/cash check failed" if status == "REJECTED" else None)
             self.db.execute("INSERT INTO orders VALUES (?,?,?)", (order.id, tag, dumps(asdict(order))))
             self.db.execute("UPDATE account SET cash=? WHERE id=1", (str(cash),))
             return order.id
@@ -140,8 +143,7 @@ class PaperBroker:
             self.db.execute("BEGIN IMMEDIATE")
             order = self.order(order_id)
             if not order.terminal:
-                self._save_order(Order(order.id, order.tag, order.stock, order.side, order.quantity,
-                                       order.filled, order.average, "CANCELLED"))
+                self._save_order(replace(order, status="CANCELLED"))
         return self.order(order_id)
 
     def _save_order(self, order):
@@ -195,7 +197,7 @@ class PaperBroker:
             if p.status == "active" and (price <= dec(p.spec.stop) or price >= dec(p.spec.target)):
                 leg = "STOP_LOSS" if price <= dec(p.spec.stop) else "PROFIT_TARGET"
                 child = Order(uuid.uuid4().hex, "gtt:" + p.id, stock, "SELL", p.spec.quantity,
-                              0, Decimal(0), "OPEN")
+                              0, Decimal(0), "OPEN", self.clock())
                 self._save_order(child)
                 p = Protection(p.id, "triggered", p.spec, (child.id,), leg)
                 self._save_protection(p)
@@ -214,8 +216,7 @@ class PaperBroker:
         owned = sum(o.filled * (1 if o.side == "BUY" else -1)
                     for o in self._orders() if o.stock == order.stock)
         if owned < remaining:
-            self._save_order(Order(order.id, order.tag, order.stock, "SELL", order.quantity,
-                                   order.filled, order.average, "REJECTED"))
+            self._save_order(replace(order, status="REJECTED", message="Paper inventory check failed"))
             return
         quantity = remaining if self.max_fill is None else min(remaining, self.max_fill)
         if not quantity:
@@ -223,9 +224,8 @@ class PaperBroker:
         value = price * quantity
         fees = value * dec(self.fees.sell_bps) / 10000 + (dec(self.fees.sell_fixed) if not order.filled else 0)
         average = (order.average * order.filled + value) / (order.filled + quantity)
-        self._save_order(Order(order.id, order.tag, order.stock, "SELL", order.quantity,
-                               order.filled + quantity, average,
-                               "COMPLETE" if quantity == remaining else "OPEN"))
+        self._save_order(replace(order, filled=order.filled + quantity, average=average,
+                                 status="COMPLETE" if quantity == remaining else "OPEN"))
         self.db.execute("UPDATE account SET cash=? WHERE id=1", (str(self.available_cash() + value - fees),))
 
     def close(self):

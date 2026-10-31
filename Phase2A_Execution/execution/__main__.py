@@ -9,6 +9,18 @@ from .models import Config, dumps
 from .store import Store
 from .brokers import PaperBroker
 from .engine import Engine
+from .supervision import health_snapshot
+
+
+def emit_alerts(health, previous):
+    """Structured local events for a supervisor/log collector; no external sends."""
+    current = set()
+    for alert in health["alerts"]:
+        key = (alert["trade_id"], alert["code"], alert["ref"], alert["severity"])
+        current.add(key)
+        if key not in previous:
+            print(dumps(dict(event="execution_alert", at=health["checked_at"], **alert)), file=sys.stderr, flush=True)
+    return current
 
 
 def main(argv=None):
@@ -25,7 +37,7 @@ def main(argv=None):
     enter.add_argument("request_id")
     enter.add_argument("stock")
     enter.add_argument("budget")
-    for name in ("tick", "status", "pause", "resume", "journal"):
+    for name in ("tick", "status", "health", "pause", "resume", "journal"):
         sub.add_parser(name)
     flatten = sub.add_parser("flatten", help="Pause entries and request all positions closed")
     flatten.add_argument("--request-id")
@@ -48,8 +60,8 @@ def main(argv=None):
     store = Store(args.db)
     broker = None
     try:
-        # Read-only status/journal and pause work without broker credentials or connectivity.
-        if args.command in ("status", "journal", "pause"):
+        # Read-only status/health/journal and pause work without broker credentials or connectivity.
+        if args.command in ("status", "health", "journal", "pause"):
             with store.locked():
                 if args.command == "pause":
                     store.set("paused", True)
@@ -57,8 +69,13 @@ def main(argv=None):
                     rows = store.db.execute("SELECT at,trade_id,kind,data FROM events ORDER BY id")
                     for at, trade_id, kind, data in rows:
                         print(dumps(dict(at=at, trade_id=trade_id, kind=kind, data=json.loads(data))))
+                elif args.command == "health":
+                    health = health_snapshot(store, cfg, time.time())
+                    print(dumps(health))
+                    return 0 if health["status"] == "HEALTHY" else 2
                 else:
-                    print(dumps(dict(paused=store.get("paused", False), heartbeat=store.get("heartbeat"), trades=store.all())))
+                    print(dumps(dict(paused=store.get("paused", False), heartbeat=store.get("heartbeat"),
+                                     health=health_snapshot(store, cfg, time.time()), trades=store.all())))
             return 0
         if args.live:
             if args.command == "quote":
@@ -77,6 +94,7 @@ def main(argv=None):
             print(dumps(engine.request_entry(args.request_id, args.stock, args.budget)))
         elif args.command == "tick":
             print(dumps(engine.tick()))
+            emit_alerts(engine.health(), set())
         elif args.command == "resume":
             engine.pause(False)
         elif args.command == "flatten":
@@ -93,12 +111,16 @@ def main(argv=None):
         elif args.command == "run":
             if not math.isfinite(args.interval) or args.interval < 3:
                 raise ValueError("Polling interval must be finite and at least 3 seconds")
+            previous_alerts = set()
             while True:
                 try:
-                    print(dumps(dict(at=time.time(), trades=engine.tick())), flush=True)
+                    trades = engine.tick()
+                    health = engine.health()
+                    print(dumps(dict(at=time.time(), trades=trades, health=health)), flush=True)
+                    previous_alerts = emit_alerts(health, previous_alerts)
                 except Exception as exc:
                     # Keep the worker alive after transient connectivity/lock failures.
-                    print(dumps(dict(at=time.time(), error=str(exc))), file=sys.stderr, flush=True)
+                    print(dumps(dict(event="worker_error", at=time.time(), error=str(exc))), file=sys.stderr, flush=True)
                 time.sleep(args.interval)
         return 0
     finally:

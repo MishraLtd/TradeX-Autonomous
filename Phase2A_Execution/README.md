@@ -11,6 +11,7 @@ From this directory, with Python 3.11+ on Linux/macOS:
 
 ```bash
 python demo.py
+python demo_recovery.py
 python -m unittest discover -s tests -v
 ```
 
@@ -57,13 +58,25 @@ schedule. Copy it to ignored `config.live.json` when configuring a real account.
 | `max_positions` | Maximum concurrent entries/positions. |
 | `max_quote_age` | Freshness limit in seconds (also rejects future timestamps). |
 | `entry_timeout` | Cancel a nonterminal entry after this many seconds. Partial entries are cancelled immediately. |
-| `max_exit_attempts` | Bounded retries after confirmed terminal partial/unfilled exits. |
+| `max_exit_attempts` | Total sell attempts per trade, including a GTT child (default 3). A replacement requires the previous sell to be terminal. |
+| `exit_timeout` | Maximum seconds before cancelling a pending sell, including a partially filled GTT child (default 30). |
+| `cancel_timeout` | Seconds from the first cancellation request to critical escalation (default 15). |
+| `max_cancel_attempts` | Maximum cancellation requests for each order/GTT (default 3); exhausting this also escalates. |
+| `submission_timeout` | Seconds before an uncertain submission or continuing reconciliation failure escalates to critical (default 30). No blind POST retry. |
+| `retry_interval` | Minimum seconds between cancellation requests and cooldown after confirming a terminal sell before replacing it (default 5). |
+| `emergency_exit_policy` | `BROKER_PROTECTED_MARKET` permits confirmed exits through a capable broker when local quotes fail; `WAIT_FOR_FRESH_QUOTE` requires a fresh quote. |
+| `health_max_age` | Maximum heartbeat/reconciliation age for the read-only health check (default 30 seconds). |
 
 Money uses `Decimal`. Tick size, fees, target, stop, exit mode and stop-limit
 buffer are snapshotted per trade; restarting with new percentages does not move
 an open trade's exit levels. An existing GTT remains authoritative even if the
 configuration changes. Removing a symbol from the whitelist prevents new entries
 but does not stop managing its existing position.
+
+Recovery settings (deadlines, attempt limits, retry interval and emergency policy)
+are also snapshotted per trade. Existing journals acquire them on their next
+reconciliation. Restarting with larger limits does not reset an existing deadline
+or cancellation budget. Monitoring freshness uses the current configuration.
 
 The entry limit is rounded up to a tick at 0.2% above the fresh quote, and quantity
 is rounded down so the worst-case entry notional plus estimated buy charges fits
@@ -129,8 +142,9 @@ responses block replacement sells and appear in the journal/status.
 - GTTs submit limit orders. A gap below the stop limit can leave the sell pending;
   no maximum loss or execution price is guaranteed. One leg firing consumes the
   OCO trigger even if its order remains unfilled. A pending target order therefore
-  does not retain the sibling stop. Automated repricing/timeouts are separate work;
-  `flatten` provides the explicit cancel-and-exit path.
+  does not retain the sibling stop. The worker now applies a sell deadline and
+  cancels/replaces only after confirming terminal status and final fills. This
+  recovery cannot run while the worker is offline or the broker is unreachable.
 - GTTs can expire, be disabled, or fail to submit an order. The worker must run to
   detect these conditions and reconcile/follow up; it cannot repair them offline.
 - Broker sell authorization, session renewal, trading restrictions and market
@@ -138,6 +152,81 @@ responses block replacement sells and appear in the journal/status.
 - The paper broker models GTTs independently on each injected fresh quote. It
   models gaps and partial fills, but not market calendars, order-book liquidity,
   or automatic exchange end-of-day cancellation; it is not a live certification.
+
+## Stalled-order recovery
+
+The worker evaluates deadlines each cycle. A deadline is a reason to escalate,
+never evidence that an order failed or that shares can safely be sold again.
+
+| Condition | Automatic response | When intervention is required |
+|---|---|---|
+| Sell remains pending or partially filled past `exit_timeout` | Pause new entries, request cancellation, confirm terminal state/fills, then retry only the residual after the cooldown. | Cancellation cannot be confirmed, or the sell attempt limit is reached. |
+| Entry/order/GTT cancellation is delayed | Persist the first deadline and attempt count; space repeated cancellation requests. Continue polling for authoritative state. | Deadline or cancellation budget expires: `CANCEL_STALLED` becomes critical and further automatic cancellation requests stop. |
+| Exit is rejected or terminates unfilled | Record the rejection message when supplied, wait `retry_interval`, and retry within `max_exit_attempts`. | `EXIT_ATTEMPTS_EXHAUSTED`: fix the broker issue and use `retry-exit` to allow one extra attempt. |
+| Regular order or GTT submission is uncertain | Preserve the original intent and capital reservation; reconcile without repeating the submission. | Uncertainty passes `submission_timeout`: critical alert, with the existing explicit adoption/absence-verification procedures. |
+| Broker/state reconciliation keeps failing | Keep processing other trades and record the error and last successful reconciliation. | Failure passes `submission_timeout`, or the successful reconciliation becomes stale. |
+
+An exit timeout uses the original order deadline, not time since the latest
+partial fill. For GTT children discovered after downtime, broker placement time
+is used when available; otherwise the first local observation is the fallback.
+Confirmed late cancellation or execution can still resolve an escalated trade
+automatically. If cancellation remains uncertain, inspect/cancel it at the broker
+and let the worker verify the result; `retry-exit` cannot bypass a pending order.
+
+Timeout replacement sells use the existing protected market exit path. They may
+execute below the original target or stop and incur additional charges; they
+prioritize closing the confirmed remaining exposure. Exchange circuits, market
+closure, liquidity and broker authorization can still prevent execution. Keep the
+worker running and route critical alerts to an operator; automatic retries are
+deliberately bounded.
+
+### Emergency exits when quotes fail
+
+The default `BROKER_PROTECTED_MARKET` policy applies only when a decision to exit
+already exists, such as `flatten`, a broker-triggered exit, or lost protection.
+The engine first reconciles order fills, verifies GTT release and checks inventory
+and foreign orders/triggers. If the local quote is missing, stale or unavailable,
+the Kite adapter can then send an IOC MARKET sell with broker market protection.
+No old quote is used to invent a limit price. The event and feed failure are
+journaled and reported in health; broker submission/fill uncertainty still uses
+the same recovery checks.
+
+`WAIT_FOR_FRESH_QUOTE` opts out of that behavior and exposes the blocked exit as
+an alert. Entries and price-based decisions to start an exit always require a
+fresh quote. The paper broker does not support quote-free execution and always
+requires a fresh injected price for a fill. Neither policy bypasses unknown
+orders, unconfirmed cancellations, ownership mismatches, or broker restrictions.
+
+### Execution health and alerting
+
+```bash
+python -m execution status
+python -m execution health
+# For a deployed account, use its configuration and journal:
+python -m execution --config config.live.json --db state/live.sqlite health
+```
+
+`health` performs no broker calls and needs no credentials. It returns JSON plus
+exit code **0** for `HEALTHY`, **2** for `DEGRADED`/`CRITICAL`; command/configuration
+failures return **1**. It checks worker freshness, each trade's successful
+reconciliation, protection verification, unresolved submissions, delayed cancels,
+unprotected exposure and exhausted exits. A fresh heartbeat cannot hide failing
+trades. A stopped worker or stale protection is detected using current time even
+if no more engine events are written.
+
+`run` includes health in each stdout record and writes `execution_alert` JSON to
+stderr when an alert first appears or changes severity. Alerts include a stable
+code, trade/order reference, deadline where applicable, and recovery action;
+alert changes are also journaled. The current health snapshot is authoritative
+for resolved alerts. `tick` emits the current alerts as well. No email, messaging,
+or paging service is configured by this code: connect your process supervisor/log
+collector and poll `health` independently to detect worker outages.
+
+Alerts pause new entries while reconciliation continues. After recovery, the
+pause remains in place until `resume`; that command refuses active errors or
+execution alerts. `HEALTHY` with `paused: true` means reconciliation is healthy
+but new buys remain deliberately disabled. Choose monitoring thresholds and a
+poll interval that accommodate the expected number of positions and API latency.
 
 ## State and recovery
 
@@ -165,7 +254,7 @@ and child IDs. JSON logs go to stdout/stderr for your process supervisor.
 
 ```bash
 python -m execution pause             # blocks buys; exits continue
-python -m execution resume            # requires active errors resolved
+python -m execution resume            # requires active errors and alerts resolved
 python -m execution flatten           # pause + request all exits; keep worker running
 python -m execution flatten --request-id experiment-1
 python -m execution retry-exit experiment-1
@@ -239,7 +328,7 @@ tokens must be obtained/refreshed outside this engine; credentials are read only
 from environment variables and never written into the trade journal.
 
 Keep `exit_mode` set to `BROKER_OCO`; live startup rejects `SOFTWARE`. Run with a
-supervisor and alert on stale heartbeat, trade errors and unconfirmed protection.
+supervisor and monitor the `health` command and structured execution alerts.
 Verified GTTs survive worker downtime, but startup/readback and triggered-order
 recovery still depend on broker API availability and retained order records.
 Live operational acceptance remains deployment work.

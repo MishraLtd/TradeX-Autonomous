@@ -286,7 +286,9 @@ class ProtectionTests(unittest.TestCase):
         self.assertEqual(len(self.sells()), 1)
         self.assertEqual(self.sells()[0].filled, 3)
         self.broker.max_fill = None
-        self.engine.tick()  # verify cancellation before selling the remaining six
+        self.engine.tick()  # verify cancellation before the retry cooldown
+        self.now += self.cfg.retry_interval
+        self.engine.tick()  # sell only the remaining six
         self.assertEqual(self.engine.tick()[0]["state"], "CLOSED")
         self.assertEqual([o.quantity for o in self.sells()], [9, 6])
         self.assertEqual(sum(o.filled for o in self.sells()), 9)
@@ -326,6 +328,8 @@ class ProtectionTests(unittest.TestCase):
         self.broker.cancel(self.sells()[0].id)
         self.broker.max_fill = None
         self.engine.tick()
+        self.now += self.cfg.retry_interval
+        self.engine.tick()
         result = self.engine.tick()[0]
         self.assertEqual(result["state"], "CLOSED")
         self.assertEqual([o.quantity for o in self.sells()], [9, 6])
@@ -340,6 +344,8 @@ class ProtectionTests(unittest.TestCase):
         self.assertEqual(len(self.sells()), 1)
         self.assertEqual(self.sells()[0].status, "CANCELLED")
         self.broker.max_fill = None
+        self.engine.tick()
+        self.now += self.cfg.retry_interval
         self.engine.tick()
         self.assertEqual(self.engine.tick()[0]["state"], "CLOSED")
         self.assertEqual([o.quantity for o in self.sells()], [9, 6])

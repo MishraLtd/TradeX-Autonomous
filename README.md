@@ -18,12 +18,15 @@ Python 3.11+ on Linux/macOS; no dependencies needed for paper mode:
 ```bash
 cd Phase2A_Execution
 python demo.py
+python demo_recovery.py
 python -m unittest discover -s tests -v
 ```
 
 The demo uses temporary databases and synthetic `NSE:DEMO` quotes. The paper
 broker completes a profit-target exit and a stop-loss exit while the engine is
 stopped; the engine then restarts and reconciles each fill. It makes no live calls.
+The recovery demo shows a stop-limit order stuck after a price gap, followed by
+deadline-based cancellation, confirmed residual sizing, and a replacement exit.
 
 ## Included
 
@@ -33,9 +36,11 @@ stopped; the engine then restarts and reconciles each fill. It makes no live cal
 - Broker-held OCO/GTT protection, verified after registration and required in live mode.
 - One active exit order per position, partial-fill accounting, bounded retries.
 - GTT child-order recovery and cancellation checks to prevent competing sells.
+- Persisted exit/cancellation deadlines, spaced retries, and critical escalation.
+- Explicit emergency-exit policy when the local quote feed is unavailable.
 - SQLite intent journal, reservations, account binding and process locking.
 - Restart reconciliation, duplicate request protection and ambiguous-order handling.
-- Pause/resume, flatten, status, JSON journal, polling worker and heartbeat.
+- Pause/resume, flatten, status, JSON journal, and execution health beyond heartbeat.
 - Persistent paper broker and optional explicitly enabled Kite CNC equity adapter.
 - Lifecycle/recovery tests and GitHub Actions checks.
 
@@ -48,7 +53,10 @@ and deployment setup. Protection starts after the entry is terminal and the GTT
 has been registered and verified; the fill-to-registration window is unprotected.
 GTTs are broker-held triggers that submit limit orders, not guaranteed exits:
 a gap through the limit can leave an order unfilled, and the sibling trigger is
-consumed when either leg fires. Recovery still needs a running worker. See the
+consumed when either leg fires. The worker now cancels overdue sells and attempts
+bounded residual exits after cancellation is confirmed. Broker failures or market
+restrictions can still require intervention; the health command exposes those
+conditions. Recovery still needs a running worker. See the
 [operating guide](Phase2A_Execution/README.md) before using the live adapter.
 
 The entry trigger is connected later through:

@@ -11,5 +11,12 @@
   "product": "CNC",
   "exit_mode": "BROKER_OCO",
   "stop_limit_buffer_pct": "0.5",
+  "exit_timeout": 30,
+  "cancel_timeout": 15,
+  "submission_timeout": 30,
+  "retry_interval": 5,
+  "max_cancel_attempts": 3,
+  "health_max_age": 30,
+  "emergency_exit_policy": "BROKER_PROTECTED_MARKET",
   "fees": {"buy_bps": "15", "sell_bps": "15", "buy_fixed": "0", "sell_fixed": "20"}
 }
