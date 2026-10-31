@@ -4,6 +4,7 @@ import inspect
 import unittest
 from unittest.mock import Mock
 from execution.kite import KiteBroker
+from execution.protection import ProtectionSpec
 
 
 class KiteTests(unittest.TestCase):
@@ -14,6 +15,7 @@ class KiteTests(unittest.TestCase):
         self.client.holdings.return_value = []
         self.client.positions.return_value = {"net": []}
         self.client.orders.return_value = []
+        self.client.get_gtts.return_value = []
         self.client.place_order.return_value = "123"
         self.broker = KiteBroker(self.client, {"NSE:DEMO": ".05"}, live=True, min_interval=0)
 
@@ -74,6 +76,97 @@ class KiteTests(unittest.TestCase):
         except ImportError:
             self.skipTest("Optional live SDK not installed")
         self.assertIn("market_protection", inspect.signature(KiteConnect.place_order).parameters)
+
+    def gtt_row(self, status="active", result=None):
+        spec = ProtectionSpec("NSE:DEMO", 3, "99", "103", "98.50", "103")
+        return dict(id=123, type="two-leg", status=status,
+                    condition=dict(exchange="NSE", tradingsymbol="DEMO", trigger_values=[99, 103]),
+                    orders=[dict(exchange="NSE", tradingsymbol="DEMO", transaction_type="SELL",
+                                 quantity=3, product="CNC", order_type="LIMIT", price=float(price),
+                                 result=result if index == 0 else None)
+                            for index, price in enumerate((spec.stop_limit, spec.target_limit))])
+
+    def test_gtt_payload_is_two_cnc_sell_limits_in_stop_target_order(self):
+        spec = ProtectionSpec("NSE:DEMO", 3, "99", "103", "98.50", "103")
+        self.client.place_gtt.return_value = {"trigger_id": 123}
+        self.assertEqual(self.broker.create_protection(spec, Decimal(100)), "123")
+        args = self.client.place_gtt.call_args.kwargs
+        self.assertEqual(args["trigger_type"], "two-leg")
+        self.assertEqual(args["trigger_values"], [99, 103])
+        self.assertEqual([o["price"] for o in args["orders"]], [98.5, 103])
+        self.assertTrue(all(o["product"] == "CNC" and o["order_type"] == "LIMIT" and
+                            o["transaction_type"] == "SELL" and o["quantity"] == 3 for o in args["orders"]))
+        self.assertFalse(any("tag" in o for o in args["orders"]))
+
+    def test_gtt_payload_binds_to_installed_sdk(self):
+        try:
+            from kiteconnect import KiteConnect
+        except ImportError:
+            self.skipTest("Optional live SDK not installed")
+        client = KiteConnect(api_key="offline-test-only")
+        client._post = Mock(return_value={"trigger_id": 123})
+        spec = ProtectionSpec("NSE:DEMO", 3, "99", "103", "98.50", "103")
+        self.broker.client = client
+        self.assertEqual(self.broker.create_protection(spec, Decimal(100)), "123")
+        self.assertEqual(client._post.call_args.args[0], "gtt.place")
+
+    def test_decode_active_gtt_validates_all_order_fields(self):
+        self.client.get_gtt.return_value = self.gtt_row()
+        p = self.broker.protection("123")
+        self.assertEqual(p.status, "active")
+        self.assertFalse(p.released)
+        for field, bad in (("quantity", 4), ("product", "MIS"), ("transaction_type", "BUY"), ("order_type", "MARKET")):
+            with self.subTest(field=field):
+                row = self.gtt_row()
+                row["orders"][1][field] = bad
+                self.client.get_gtt.return_value = row
+                with self.assertRaises(ValueError):
+                    self.broker.protection("123")
+
+    def test_decode_triggered_child_uses_nested_order_result(self):
+        self.client.get_gtt.return_value = self.gtt_row("triggered", {"order_result": {"status": "success", "order_id": "child-1"}})
+        p = self.broker.protection("123")
+        self.assertEqual(p.child_ids, ("child-1",))
+        self.assertEqual(p.triggered_leg, "STOP_LOSS")
+        self.assertTrue(p.released)
+
+    def test_decode_explicit_failure_vs_pending_result(self):
+        self.client.get_gtt.return_value = self.gtt_row("triggered", {"order_result": {"status": "failed", "order_id": ""}})
+        self.assertTrue(self.broker.protection("123").submission_failed)
+        self.assertTrue(self.broker.protection("123").released)
+        self.client.get_gtt.return_value = self.gtt_row("triggered", {"order_result": {"status": "pending"}})
+        self.assertTrue(self.broker.protection("123").submission_pending)
+        self.assertFalse(self.broker.protection("123").released)
+
+    def test_deleted_with_unresolved_child_result_is_not_released(self):
+        self.client.get_gtt.return_value = self.gtt_row("deleted", {"order_result": {"status": "pending"}})
+        self.assertFalse(self.broker.protection("123").released)
+
+    def test_active_gtt_with_child_result_is_inconsistent(self):
+        self.client.get_gtt.return_value = self.gtt_row("active", {"order_result": {"order_id": "child"}})
+        with self.assertRaises(ValueError):
+            self.broker.protection("123")
+
+    def test_both_oco_legs_with_results_are_rejected(self):
+        row = self.gtt_row("triggered", {"order_result": {"order_id": "first"}})
+        row["orders"][1]["result"] = {"order_result": {"order_id": "second"}}
+        self.client.get_gtt.return_value = row
+        with self.assertRaises(ValueError):
+            self.broker.protection("123")
+
+    def test_foreign_single_leg_gtt_is_also_detected(self):
+        row = self.gtt_row()
+        row["type"] = "single"
+        row["orders"] = row["orders"][:1]
+        self.client.get_gtts.return_value = [row]
+        self.assertEqual(self.broker.protection_ids("NSE:DEMO"), ["123"])
+        with self.assertRaises(ValueError):
+            self.broker.assert_no_protection("NSE:DEMO", [])
+        self.broker.assert_no_protection("NSE:DEMO", ["123"])
+
+    def test_gtt_delete_targets_only_owned_identifier(self):
+        self.broker.cancel_protection("123")
+        self.client.delete_gtt.assert_called_once_with("123")
 
 
 if __name__ == "__main__":

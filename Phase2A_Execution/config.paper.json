@@ -9,5 +9,7 @@
   "max_exit_attempts": 3,
   "entry_timeout": 30,
   "product": "CNC",
+  "exit_mode": "BROKER_OCO",
+  "stop_limit_buffer_pct": "0.5",
   "fees": {"buy_bps": "15", "sell_bps": "15", "buy_fixed": "0", "sell_fixed": "20"}
 }

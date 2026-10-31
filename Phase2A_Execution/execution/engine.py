@@ -5,16 +5,26 @@ import time
 import uuid
 
 from .models import Fees, Order, dec, positive, exit_levels
+from .protection import ProtectionManager
 
 
 class Engine:
     def __init__(self, config, store, broker, clock=time.time):
         self.config, self.store, self.broker, self.clock = config, store, broker, clock
+        self.protection = ProtectionManager(broker, store, clock)
+        if getattr(broker, "protection_required", False) and config.exit_mode != "BROKER_OCO":
+            raise ValueError("Live execution requires BROKER_OCO protection")
         with store.locked():
             identity = broker.identity
             if store.get("account", identity) != identity:
                 raise ValueError("Database belongs to a different broker account/mode")
             store.set("account", identity)
+
+    def _broker_exits(self, trade):
+        # Existing live positions migrate on their next cycle. Once a GTT exists,
+        # a config change can never bypass its ownership/reconciliation protocol.
+        return (bool(trade.get("protection")) or getattr(self.broker, "protection_required", False) or
+                trade.get("exit_mode", self.config.exit_mode) == "BROKER_OCO")
 
     def request_entry(self, request_id, stock, budget):
         """Future entry trigger calls this once with a stable id. No prices required.
@@ -42,6 +52,11 @@ class Engine:
                 raise ValueError("Stock already has an active entry or position")
             if any(t.get("error") or any(o["status"] == "UNKNOWN" for o in t["orders"]) for t in active):
                 raise ValueError("Resolve outstanding broker uncertainty before new entries")
+            for t in active:
+                p = t.get("protection", {})
+                if self._broker_exits(t) and (p.get("health") != "ACTIVE" or
+                        self.clock() - p.get("verified_at", 0) > cfg.max_quote_age):
+                    raise ValueError("Reconcile and protect existing exposure before new entries")
             if len(active) >= cfg.max_positions:
                 raise ValueError("Maximum positions reached")
             if budget > dec(cfg.per_trade_limit):
@@ -49,6 +64,7 @@ class Engine:
             reserved = sum((dec(t["reserved"]) for t in active), Decimal(0))
             if reserved + budget > dec(cfg.capital_limit):
                 raise ValueError("Total capital limit exceeded")
+            self.broker.assert_no_protection(stock, self.protection.owned_ids(stock))
             self.broker.assert_inventory(stock, 0, [])
             if budget > self.broker.available_cash():
                 raise ValueError("Insufficient broker cash")
@@ -66,12 +82,28 @@ class Engine:
                          state="ENTERING", quantity=quantity, tick=str(tick),
                          profit_pct=cfg.profit_pct, stop_pct=cfg.stop_pct,
                          fees=asdict(cfg.fees), orders=[], reason=None, error=None,
+                         exit_mode=cfg.exit_mode, stop_limit_buffer_pct=cfg.stop_limit_buffer_pct,
                          created=self.clock(), target=None, stop=None)
             self.store.save(trade, "ENTRY_ACCEPTED")
             self._place(trade, "BUY", quantity, limit)
+            # Reduce the fill-to-protection gap for immediate IOC fills; later
+            # broker updates are still reconciled by the worker.
+            if cfg.exit_mode == "BROKER_OCO":
+                try:
+                    self._progress(trade)
+                except Exception as exc:
+                    trade["error"] = str(exc)
+                    self.store.set("paused", True)
+                self.store.save(trade, "ENTRY_PROTECTION_CHECK")
             return trade
 
     def _place(self, trade, side, quantity, limit=None):
+        if side == "SELL":
+            if trade.get("protection") and not trade["protection"].get("released"):
+                raise RuntimeError("Broker protection still owns the exit; competing sell blocked")
+            if any(o["side"] == "SELL" and o["status"] not in ("COMPLETE", "CANCELLED", "REJECTED")
+                   for o in trade["orders"]):
+                raise RuntimeError("Another exit order is still unresolved")
         tag = "tx" + uuid.uuid4().hex[:18]
         record = dict(id="", tag=tag, stock=trade["stock"], side=side,
                       quantity=quantity, filled=0, average="0", status="UNKNOWN",
@@ -106,6 +138,7 @@ class Engine:
             self.store.save(trade, "ORDER_RECONCILED")
 
     def _progress(self, trade):
+        remote = self.protection.sync(trade)
         self._refresh(trade)
         buy = trade["orders"][0]
         if buy["status"] not in ("COMPLETE", "CANCELLED", "REJECTED"):
@@ -123,6 +156,9 @@ class Engine:
         trade["filled_quantity"], trade["remaining"] = bought, remaining
         trade["entry_price"] = str(buy["average"])
         if remaining == 0:
+            if remote is not None and not remote.released:
+                self.protection.cancel(trade)
+                return  # never close a trade while a GTT could still sell later
             gross = sum((dec(o["average"]) * o["filled"] for o in trade["orders"]
                          if o["side"] == "SELL"), Decimal(0)) - dec(buy["average"]) * bought
             fees = Fees(**trade["fees"])
@@ -142,9 +178,33 @@ class Engine:
         exits = [o for o in trade["orders"] if o["side"] == "SELL"]
         if any(o["status"] not in ("COMPLETE", "CANCELLED", "REJECTED") for o in exits):
             trade["state"] = "EXITING"
+            if trade["reason"] == "OPERATOR_EXIT":
+                for o in exits:
+                    if o.get("protection_id") and o["status"] not in ("COMPLETE", "CANCELLED", "REJECTED"):
+                        self.broker.cancel(o["id"])
             return
+        if remote is not None:
+            if remote.status == "active":
+                if trade["reason"]:
+                    self.protection.cancel(trade)
+                else:
+                    self.broker.assert_inventory(trade["stock"], remaining, [o["id"] for o in trade["orders"]])
+                    self.broker.assert_no_protection(trade["stock"], self.protection.owned_ids(trade["stock"]))
+                    trade["state"] = "OPEN"
+                return  # broker owns target/stop; no software-trigger sell
+            if remote.status == "disabled":
+                self.store.set("paused", True)
+                trade["reason"] = trade["reason"] or "PROTECTION_LOST"
+                self.protection.cancel(trade)
+                return
+            if not remote.released:
+                raise RuntimeError("Protection outcome unresolved; competing exit blocked")
+            if not trade["reason"]:
+                self.store.set("paused", True)
+                trade["reason"] = "PROTECTION_LOST"
         # Check broker ownership immediately before deciding to sell. Never sell unrelated holdings.
         self.broker.assert_inventory(trade["stock"], remaining, [o["id"] for o in trade["orders"]])
+        self.broker.assert_no_protection(trade["stock"], self.protection.owned_ids(trade["stock"]))
         quote = self.broker.quote(trade["stock"])
         quote.check(self.clock(), self.config.max_quote_age)
         trade["last_price"] = str(quote.price)
@@ -153,6 +213,13 @@ class Engine:
                 trade["reason"] = "STOP_LOSS"
             elif dec(quote.price) >= dec(trade["target"]):
                 trade["reason"] = "PROFIT_TARGET"
+        if self._broker_exits(trade) and not trade["reason"] and not trade.get("protection"):
+            trade.setdefault("stop_limit_buffer_pct", self.config.stop_limit_buffer_pct)
+            protected = self.protection.arm(trade, remaining, quote)
+            if protected.status not in ("active", "triggered"):
+                raise RuntimeError("Broker did not activate protection")
+            trade["state"] = "OPEN" if protected.status == "active" else "EXITING"
+            return
         if trade["reason"]:
             if len(exits) >= self.config.max_exit_attempts + trade.get("extra_attempts", 0):
                 raise RuntimeError("Exit attempts exhausted; reconcile broker rejection before retry-exit")
@@ -226,3 +293,24 @@ class Engine:
             record["status"] = "REJECTED"
             trade["error"] = None
             self.store.save(trade, "OPERATOR_CONFIRMED_NOT_PLACED")
+
+    def adopt_protection(self, request_id, trigger_id):
+        """Operator identifies the exact GTT after a lost creation response."""
+        with self.store.locked():
+            trade = next(t for t in self.store.all() if t["id"] == request_id)
+            self.protection.adopt(trade, trigger_id)
+
+    def resolve_protection_absent(self, request_id, *, confirmed_not_created=False):
+        """After broker verification, permit closing an unprotected position."""
+        if not confirmed_not_created:
+            raise ValueError("Broker records must confirm the GTT was never created")
+        with self.store.locked():
+            trade = next(t for t in self.store.all() if t["id"] == request_id)
+            saved = trade.get("protection")
+            if not saved or saved["id"] or saved.get("confirmed_absent"):
+                raise ValueError("Only an unidentified protection intent can be resolved absent")
+            self.broker.assert_no_protection(trade["stock"], self.protection.owned_ids(trade["stock"]))
+            saved.update(confirmed_absent=True, released=True, health="INACTIVE", status="rejected")
+            trade["reason"] = trade["reason"] or "PROTECTION_LOST"
+            self.store.set("paused", True)
+            self.store.save(trade, "OPERATOR_CONFIRMED_GTT_ABSENT")

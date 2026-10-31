@@ -24,8 +24,8 @@ python -m execution tick
 python -m execution status
 # Use the calculated target/stop from status. 110 crosses the demo target:
 python -m execution quote NSE:DEMO 110
-python -m execution tick
-python -m execution tick
+# The paper broker has already triggered and filled without an engine tick.
+python -m execution tick  # reconcile the broker's sell and close the trade
 python -m execution journal
 ```
 
@@ -51,16 +51,19 @@ schedule. Copy it to ignored `config.live.json` when configuring a real account.
 | `per_trade_limit` | Maximum entry budget, including estimated buy fees. |
 | `profit_pct` | Desired net profit percentage on filled entry notional, after estimated fees. |
 | `stop_pct` | Gross price distance below average fill; this is not a guaranteed maximum net loss. |
+| `exit_mode` | `BROKER_OCO` (default) registers paired broker GTT exits. Live Kite requires this mode. `SOFTWARE` is available only for paper comparisons. |
+| `stop_limit_buffer_pct` | Stop sell limit distance below the stop trigger, rounded down to a tick (default 0.5%). A larger buffer accepts a lower execution price; it does not guarantee a fill. |
 | `fees` | Per-side basis points and fixed charges per order. Include a delivery/DP allowance where appropriate. |
 | `max_positions` | Maximum concurrent entries/positions. |
 | `max_quote_age` | Freshness limit in seconds (also rejects future timestamps). |
 | `entry_timeout` | Cancel a nonterminal entry after this many seconds. Partial entries are cancelled immediately. |
 | `max_exit_attempts` | Bounded retries after confirmed terminal partial/unfilled exits. |
 
-Money uses `Decimal`. Settings for tick size, fees, target and stop are snapshotted
-per trade; restarting with a new target percentage does not move an open trade's
-exit levels. Removing a symbol from the whitelist prevents new entries but does
-not stop managing its existing position.
+Money uses `Decimal`. Tick size, fees, target, stop, exit mode and stop-limit
+buffer are snapshotted per trade; restarting with new percentages does not move
+an open trade's exit levels. An existing GTT remains authoritative even if the
+configuration changes. Removing a symbol from the whitelist prevents new entries
+but does not stop managing its existing position.
 
 The entry limit is rounded up to a tick at 0.2% above the fresh quote, and quantity
 is rounded down so the worst-case entry notional plus estimated buy charges fits
@@ -89,14 +92,62 @@ charges and slippage can change realized net profit. The journal labels P&L
 cost engine is preserved separately; this module uses the explicit fee profile
 above rather than claiming that its rates have been validated for your account.
 
+## Broker-held target and stop
+
+After the entry reaches a confirmed terminal state, the engine calculates levels
+from the actual fills and registers a two-leg sell GTT. The stop leg submits a
+limit sell at `floor_to_tick(stop * (1 - stop_limit_buffer_pct / 100))`, with a
+minimum of one tick; the target leg submits a limit sell at the target. Both use
+the filled quantity and CNC product. A fresh quote already outside the target or
+stop causes an immediate exit request instead of registering invalid levels.
+
+The engine journals its intent before registration, saves the broker trigger ID,
+then reads the GTT back to verify the stock, quantity, side, product and prices.
+Only a verified `ACTIVE` trigger is reported as active protection. New entries
+are blocked while an existing position has missing, stale or uncertain protection.
+Existing live journals gain protection during reconciliation without replacing
+their saved target or stop prices.
+
+Once registered, the broker watches the prices even if the worker or its network
+connection fails. The engine discovers a triggered sell through the GTT's child
+order ID, confirms its actual fills and sells only any confirmed residual after
+that order is terminal. It never treats a GTT trigger as a completed sale. A
+worker pause leaves existing protection in place.
+
+`flatten` first requests GTT cancellation, then fetches its state again. An
+acknowledgment alone cannot authorize another sell. If a trigger fires during
+cancellation, the engine adopts its child order; a pending child must be cancelled
+and its final fill quantity confirmed before a replacement is submitted. Expired,
+deleted or otherwise lost protection pauses new entries and requests closure once
+the broker confirms no competing trigger/child remains. Unknown or inconsistent
+responses block replacement sells and appear in the journal/status.
+
+### Limits of this protection
+
+- The interval between an entry fill and verified GTT registration remains
+  unprotected, including while a partially filled entry awaits cancellation.
+- GTTs submit limit orders. A gap below the stop limit can leave the sell pending;
+  no maximum loss or execution price is guaranteed. One leg firing consumes the
+  OCO trigger even if its order remains unfilled. A pending target order therefore
+  does not retain the sibling stop. Automated repricing/timeouts are separate work;
+  `flatten` provides the explicit cancel-and-exit path.
+- GTTs can expire, be disabled, or fail to submit an order. The worker must run to
+  detect these conditions and reconcile/follow up; it cannot repair them offline.
+- Broker sell authorization, session renewal, trading restrictions and market
+  liquidity still apply. This implementation has no live-account acceptance test.
+- The paper broker models GTTs independently on each injected fresh quote. It
+  models gaps and partial fills, but not market calendars, order-book liquidity,
+  or automatic exchange end-of-day cancellation; it is not a live certification.
+
 ## State and recovery
 
 `ENTERING -> OPEN -> EXITING -> CLOSED`, or `ENTERING -> NO_FILL`.
-Each broker intent is committed before submission. A lost submission response
+Each broker intent is committed before submission. A lost regular-order response
 leaves an UNKNOWN intent. Recovery searches the broker tag; it does **not** retry
 the POST merely because no response was received. Tags are not assumed to be
-broker-enforced idempotency keys. Terminal fills are journaled locally because
-the Kite order book is daily.
+broker-enforced idempotency keys. GTT creation has no client tag/idempotency key;
+its separate recovery procedure is below. Terminal fills are journaled locally
+because the Kite order book is daily.
 
 One SQLite database is bound to one broker account/mode. Use exactly one database
 and one worker deployment per account, on local durable disk, and keep manual
@@ -105,10 +156,12 @@ operations using that same database. Multiple databases/hosts are not coordinate
 Back up the database using SQLite's backup API or after stopping the worker; a
 live WAL database must not be backed up by copying only the main file.
 
-The worker checks holdings/positions and foreign pending orders before entry or
-exit. Mismatches, stale data and broker errors are journaled and pause new entries.
-Other positions continue to be processed. The heartbeat and per-trade errors are
-available in `status`; JSON logs go to stdout/stderr for your process supervisor.
+The worker checks holdings/positions, foreign pending orders and unmanaged GTTs
+before entry or a replacement exit. Mismatches, stale data and broker errors are
+journaled and pause new entries. Other positions continue to be processed. The
+heartbeat, per-trade errors and `protection` record are available in `status`;
+that record includes the trigger ID, expected contract, health, verification time
+and child IDs. JSON logs go to stdout/stderr for your process supervisor.
 
 ```bash
 python -m execution pause             # blocks buys; exits continue
@@ -132,6 +185,38 @@ Never attest absence from an empty daily order book alone. If the order exists,
 let normal tag reconciliation adopt it. Cross-day unresolved submissions may
 require broker support; do not delete the state or issue a replacement blindly.
 
+### Lost GTT registration response
+
+If registration times out before its ID is saved, the engine pauses new entries
+and neither repeats the POST nor sends a competing sell. Inspect the broker GTT
+and order records to identify the exact trigger created for the journaled intent:
+
+```bash
+python -m execution adopt-protection experiment-1 EXACT_BROKER_TRIGGER_ID
+python -m execution tick
+```
+
+The command verifies the saved prices and quantity, rejects an older or already
+owned trigger, and blocks adoption if another unmanaged trigger remains. It also
+works when that GTT has already triggered, provided the child order can still be
+verified. Matching prices alone are not evidence of ownership; the operator must
+identify the exact broker record. If no trigger was created, **first verify that
+fact in broker records**, then explicitly attest it:
+
+```bash
+python -m execution resolve-protection-absent experiment-1 --confirmed-not-created
+python -m execution tick
+```
+
+This enables closure of the unprotected position, not another registration
+attempt. An empty GTT list alone is insufficient: the list of non-active GTTs is
+time-limited, and an unknown trigger may have fired. Missing trigger/history
+records, unresolved child submissions or identity changes require manual broker
+reconciliation. Never delete the journal to clear these errors. A saved trigger
+ID is fetched directly during normal restart recovery; no operator adoption is
+needed simply because the worker restarted. Resume new entries only after errors
+are resolved and existing exposure has been reconciled.
+
 ## Optional Kite connection
 
 ```bash
@@ -141,9 +226,10 @@ python -m execution --config config.live.json --db state/live.sqlite --live run
 ```
 
 The SDK version is pinned and contract-tested. The adapter validates stock/tick
-metadata at startup, uses account identity binding, sends IOC LIMIT buys and IOC
-MARKET sells with Kite automatic market protection, and applies request spacing.
-An API order ID is only an acknowledgment: fills come from order history. No
+metadata at startup, uses account identity binding, sends IOC LIMIT buys, paired
+CNC LIMIT GTT exits, and IOC MARKET sells with Kite automatic market protection
+for confirmed fallback/operator exits. It applies request spacing. An API order
+ID is only an acknowledgment: fills come from order history. No
 live broker calls or trades were used to validate this implementation. Do a
 controlled account integration check before relying on it unattended.
 
@@ -152,13 +238,11 @@ account setup; this engine does not bypass that requirement. Session access
 tokens must be obtained/refreshed outside this engine; credentials are read only
 from environment variables and never written into the trade journal.
 
-Stops and targets are **software triggers**, not broker-hosted OCO/GTT orders.
-Only one sell can be outstanding, so target and stop cannot independently sell
-the same position. The worker must be online with a fresh feed. Shutdowns, API
-outages, gaps, circuits and protected market orders that do not fill can leave
-positions open. An entry awaiting cancellation confirmation is not yet eligible
-for an exit. Run with a supervisor and alert on stale heartbeat or trade errors;
-broker-hosted protection and live operational acceptance remain deployment work.
+Keep `exit_mode` set to `BROKER_OCO`; live startup rejects `SOFTWARE`. Run with a
+supervisor and alert on stale heartbeat, trade errors and unconfirmed protection.
+Verified GTTs survive worker downtime, but startup/readback and triggered-order
+recovery still depend on broker API availability and retained order records.
+Live operational acceptance remains deployment work.
 
 ## Entry strategy boundary
 
@@ -173,4 +257,5 @@ is the intentionally deferred part of the product.
 
 Official adapter references: [orders](https://kite.trade/docs/connect/v3/orders/),
 [quotes](https://kite.trade/docs/connect/v3/market-quotes/),
-[portfolio](https://kite.trade/docs/connect/v3/portfolio/).
+[portfolio](https://kite.trade/docs/connect/v3/portfolio/),
+[GTT](https://kite.trade/docs/connect/v3/gtt/).

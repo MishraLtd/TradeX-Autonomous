@@ -1,4 +1,4 @@
-"""Isolated paper walkthrough: automatic profit target and stop-loss exits."""
+"""Paper GTT exits execute while the engine is stopped, then reconcile on restart."""
 from pathlib import Path
 import tempfile
 from execution import Engine, Config
@@ -19,9 +19,16 @@ def main():
                 engine.request_entry(f"demo-{number}", "NSE:DEMO", "1000")
                 trade = engine.tick()[-1]
                 print(f"Filled {trade['filled_quantity']} at {trade['entry_price']}; target={trade['target']}; stop={trade['stop']}")
+                print(f"Verified broker protection: {trade['protection']['health']}")
+                store.close()
+                engine = None  # worker offline; the separate broker still receives prices
                 broker.set_quote("NSE:DEMO", trade[outcome])
-                engine.tick()  # submit sell
-                trade = engine.tick()[-1]  # confirm sell
+                protection = broker.protection(trade["protection"]["id"])
+                child = broker.order(protection.child_ids[0])
+                print(f"Engine offline: broker sold {child.filled} shares ({child.status})")
+                store = Store(Path(directory) / "engine.sqlite")
+                engine = Engine(cfg, store, broker)
+                trade = engine.tick()[-1]  # adopt and reconcile; no competing sell
                 print(dumps({k: trade[k] for k in ("id", "state", "reason", "gross_pnl", "estimated_net_pnl")}))
         finally:
             broker.close()

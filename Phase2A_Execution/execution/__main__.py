@@ -35,6 +35,12 @@ def main(argv=None):
     absent.add_argument("request_id")
     absent.add_argument("tag")
     absent.add_argument("--confirmed-not-placed", action="store_true")
+    adopt = sub.add_parser("adopt-protection", help="Adopt the verified GTT ID after a lost create response")
+    adopt.add_argument("request_id")
+    adopt.add_argument("trigger_id")
+    missing = sub.add_parser("resolve-protection-absent", help="Permit exit after verifying a GTT was never created")
+    missing.add_argument("request_id")
+    missing.add_argument("--confirmed-not-created", action="store_true")
     run = sub.add_parser("run", help="Poll orders and manage exits until interrupted")
     run.add_argument("--interval", type=float, default=5)
     args = parser.parse_args(argv)
@@ -80,6 +86,10 @@ def main(argv=None):
             engine.retry_exit(args.request_id)
         elif args.command == "resolve-absent":
             engine.resolve_absent(args.request_id, args.tag, confirmed_not_placed=args.confirmed_not_placed)
+        elif args.command == "adopt-protection":
+            engine.adopt_protection(args.request_id, args.trigger_id)
+        elif args.command == "resolve-protection-absent":
+            engine.resolve_protection_absent(args.request_id, confirmed_not_created=args.confirmed_not_created)
         elif args.command == "run":
             if not math.isfinite(args.interval) or args.interval < 3:
                 raise ValueError("Polling interval must be finite and at least 3 seconds")

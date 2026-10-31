@@ -61,6 +61,8 @@ class Config:
     max_exit_attempts: int = 3
     entry_timeout: float = 30
     product: str = "CNC"
+    exit_mode: str = "BROKER_OCO"
+    stop_limit_buffer_pct: str = "0.5"
 
     def __post_init__(self):
         if not self.stocks:
@@ -76,6 +78,10 @@ class Config:
             raise ValueError("Invalid stop or capital limit")
         if self.product != "CNC":
             raise ValueError("This version supports fully funded CNC equities only")
+        if self.exit_mode not in ("BROKER_OCO", "SOFTWARE"):
+            raise ValueError("exit_mode must be BROKER_OCO or SOFTWARE (paper only)")
+        if not 0 <= dec(self.stop_limit_buffer_pct) < 100:
+            raise ValueError("Stop-limit buffer must be in [0, 100)")
         for value in (self.max_positions, self.max_exit_attempts):
             if type(value) is not int or value < 1:
                 raise ValueError("Counts must be positive integers")

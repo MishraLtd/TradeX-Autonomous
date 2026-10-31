@@ -17,7 +17,7 @@ class ExecutionTests(unittest.TestCase):
         self.root = Path(self.tmp.name)
         self.now = 1000.0
         self.clock = lambda: self.now
-        self.cfg = Config({"NSE:DEMO": "0.05", "NSE:DEMO2": "0.05"}, "2000", "1000", "2", "1")
+        self.cfg = Config({"NSE:DEMO": "0.05", "NSE:DEMO2": "0.05"}, "2000", "1000", "2", "1", exit_mode="SOFTWARE")
         self.store = Store(self.root / "engine.sqlite")
         self.broker = PaperBroker(self.root / "broker.sqlite", "2000", self.cfg.fees, self.clock)
         self.engine = Engine(self.cfg, self.store, self.broker, self.clock)

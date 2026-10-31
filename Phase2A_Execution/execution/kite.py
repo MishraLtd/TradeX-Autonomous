@@ -3,6 +3,7 @@
     https://kite.trade/docs/connect/v3/orders/
     https://kite.trade/docs/connect/v3/market-quotes/
     https://kite.trade/docs/connect/v3/portfolio/
+    https://kite.trade/docs/connect/v3/gtt/
 
 Tags are recovery hints, NOT broker-side idempotency guarantees. No POST retries.
 """
@@ -10,9 +11,12 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 import time
 from .models import Quote, Order, dec
+from .protection import Protection, ProtectionSpec
 
 
 class KiteBroker:
+    protection_required = True
+
     def __init__(self, client, stocks, *, live=False, min_interval=0.35):
         if not live:
             raise ValueError("Live broker requires explicit live=True")
@@ -101,3 +105,64 @@ class KiteBroker:
 
     def cancel(self, order_id):
         return self._call(self.client.cancel_order, variety="regular", order_id=order_id)
+
+    def protection_ids(self, stock):
+        return [str(row["id"]) for row in self._call(self.client.get_gtts)
+                if self._gtt_stock(row) == stock]
+
+    @staticmethod
+    def _gtt_stock(row):
+        condition = row["condition"]
+        return condition["exchange"] + ":" + condition["tradingsymbol"]
+
+    def assert_no_protection(self, stock, own_ids):
+        for row in self._call(self.client.get_gtts):
+            if (self._gtt_stock(row) == stock and str(row["id"]) not in own_ids and
+                    row["status"] not in ("deleted", "cancelled", "expired", "rejected")):
+                raise ValueError("Unmanaged GTT on managed stock; reconcile it before trading")
+
+    def create_protection(self, spec, last_price):
+        if not dec(spec.stop) < dec(last_price) < dec(spec.target):
+            raise ValueError("Market price already outside protection levels")
+        exchange, symbol = spec.stock.split(":")
+        # Kite's SDK deliberately strips unknown order fields. GTT does not
+        # accept our regular-order tags; never pretend this POST is idempotent.
+        orders = [dict(transaction_type="SELL", quantity=spec.quantity, order_type="LIMIT",
+                       product="CNC", price=float(price)) for price in (spec.stop_limit, spec.target_limit)]
+        result = self._call(self.client.place_gtt, trigger_type="two-leg", tradingsymbol=symbol,
+                            exchange=exchange, trigger_values=[float(spec.stop), float(spec.target)],
+                            last_price=float(last_price), orders=orders)
+        return str(result["trigger_id"])
+
+    def protection(self, trigger_id):
+        row = self._call(self.client.get_gtt, trigger_id)
+        if str(row["id"]) != str(trigger_id):
+            raise ValueError("Unexpected GTT ID")
+        orders = row["orders"]
+        values = row["condition"]["trigger_values"]
+        stock = self._gtt_stock(row)
+        if row["type"] != "two-leg" or len(orders) != 2 or len(values) != 2:
+            raise ValueError("Expected two-leg GTT")
+        for o in orders:
+            if (o["exchange"] + ":" + o["tradingsymbol"] != stock or o["product"] != "CNC" or
+                    o["transaction_type"] != "SELL" or o["order_type"] != "LIMIT" or
+                    o["quantity"] != orders[0]["quantity"]):
+                raise ValueError("Invalid GTT order contract")
+        spec = ProtectionSpec(stock, orders[0]["quantity"], str(values[0]), str(values[1]),
+                              str(orders[0]["price"]), str(orders[1]["price"]))
+        ids, leg, failed, pending = [], None, False, False
+        results = [(i, o["result"]) for i, o in enumerate(orders) if o.get("result") is not None]
+        if len(results) > 1 or (results and row["status"] in ("active", "disabled")):
+            raise ValueError("Inconsistent OCO results")
+        for index, result in results:
+            leg = "STOP_LOSS" if index == 0 else "PROFIT_TARGET"
+            outcome = result.get("order_result", {})
+            if outcome.get("order_id"):
+                ids.append(str(outcome["order_id"]))
+            else:
+                failed = outcome.get("status") == "failed"
+                pending = not failed
+        return Protection(str(row["id"]), row["status"], spec, tuple(ids), leg, failed, pending)
+
+    def cancel_protection(self, trigger_id):
+        return self._call(self.client.delete_gtt, trigger_id)
