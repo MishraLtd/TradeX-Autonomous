@@ -7,12 +7,18 @@ import uuid
 from .models import Fees, Order, dec, positive, exit_levels
 from .protection import ProtectionManager
 from .supervision import Supervisor, health_snapshot, policy, trade_alerts
+from .market import MarketCalendar, MarketClosed
+from .sessions import SessionUnavailable
 
 
 class Engine:
-    def __init__(self, config, store, broker, clock=time.time):
+    def __init__(self, config, store, broker, clock=time.time, calendar=None):
         self.config, self.store, self.broker, self.clock = config, store, broker, clock
-        self.supervisor = Supervisor(config, store, clock)
+        self.calendar = calendar
+        if getattr(broker, "requires_market_hours", False):
+            self.calendar = calendar or (MarketCalendar.load(config.market_calendar) if config.market_calendar else broker.calendar)
+            broker.calendar = self.calendar
+        self.supervisor = Supervisor(config, store, clock, self._require_open)
         self.protection = ProtectionManager(broker, store, clock, self.supervisor)
         if getattr(broker, "protection_required", False) and config.exit_mode != "BROKER_OCO":
             raise ValueError("Live execution requires BROKER_OCO protection")
@@ -21,6 +27,84 @@ class Engine:
             if store.get("account", identity) != identity:
                 raise ValueError("Database belongs to a different broker account/mode")
             store.set("account", identity)
+
+    def _market_snapshot(self):
+        if self.calendar is not None:
+            self.store.set("calendar", self.calendar.data)
+            stocks = set(self.config.stocks) | {t["stock"] for t in self.store.all()
+                                               if t["state"] not in ("CLOSED", "NO_FILL")}
+            self.store.set("market", self.calendar.snapshot(stocks, self.clock()))
+
+    def preflight(self):
+        """Read-only broker checks; safe before the open and after manual renewal."""
+        with self.store.locked():
+            return self._preflight(force=True)
+
+    def _preflight(self, force=False):
+        if self.calendar is None:
+            return dict(status="NOT_REQUIRED")
+        self._market_snapshot()
+        states = self.store.get("market")
+        now = self.clock()
+        day = next(iter(states.values()))["trading_date"]
+        revision = self.store.get("session", {}).get("revision")
+        saved = self.store.get("preflight", {})
+        identity = dict(trading_date=day, session_revision=revision,
+                        stocks=self.config.stocks, calendar=self.calendar.data)
+        if not force and saved.get("identity") == identity:
+            if saved.get("status") == "READY" or 0 <= now - saved["checked_at"] < 5:
+                return saved
+        if any(s["state"] == "UNKNOWN" for s in states.values()):
+            result = dict(status="FAILED", error="Calendar coverage is unverified")
+        elif not any(s["state"] in ("PREMARKET", "OPEN") for s in states.values()):
+            result = dict(status="WAITING", error=None)
+        else:
+            try:
+                checks = self.broker.preflight() if hasattr(self.broker, "preflight") else {
+                    "cash_available": str(self.broker.available_cash())}
+                active = [t for t in self.store.all() if t["state"] not in ("CLOSED", "NO_FILL")]
+                quantities, order_ids = {}, {}
+                for t in active:
+                    self.supervisor.prepare(t)
+                    self.protection.sync(t)
+                    self._refresh(t)
+                    if any(o["side"] == "BUY" and o["status"] not in ("COMPLETE", "CANCELLED", "REJECTED")
+                           for o in t["orders"]):
+                        raise ValueError("Prior entry still awaits authoritative terminal state")
+                    quantity = sum(o["filled"] * (1 if o["side"] == "BUY" else -1) for o in t["orders"])
+                    if quantity < 0:
+                        raise ValueError("Broker reports an oversell")
+                    quantities[t["stock"]] = quantities.get(t["stock"], 0) + quantity
+                    order_ids.setdefault(t["stock"], []).extend(o["id"] for o in t["orders"])
+                expected = {stock: quantities.get(stock, 0) for stock in set(self.config.stocks) | quantities.keys()}
+                triggers = {stock: self.protection.owned_ids(stock) for stock in expected}
+                if hasattr(self.broker, "preflight_inventory"):
+                    self.broker.preflight_inventory(expected, order_ids, triggers)
+                else:
+                    for stock, quantity in expected.items():
+                        self.broker.assert_inventory(stock, quantity, order_ids.get(stock, []))
+                        self.broker.assert_no_protection(stock, triggers[stock])
+                result = dict(status="READY", error=None, checks=checks)
+            except Exception as exc:
+                result = dict(status="FAILED", error=f"{type(exc).__name__}: {exc}")
+        result.update(identity=identity, checked_at=now)
+        self.store.set("preflight", result)
+        return result
+
+    def _can_act(self, trade):
+        if self.calendar is None:
+            return True
+        state = self.calendar.status(trade["stock"].split(":")[0], self.clock())
+        trade["market"] = state
+        allowed = state["state"] == "OPEN" and state["execution_close"] - self.clock() > 10
+        if not allowed:
+            trade["exit_feed"] = dict(state="MARKET_CLOSED" if state["state"] != "UNKNOWN" else "CALENDAR_UNVERIFIED",
+                                      checked_at=self.clock())
+        return allowed
+
+    def _require_open(self, trade):
+        if self.calendar is not None:
+            self.calendar.require_open(trade["stock"], self.clock())
 
     def _broker_exits(self, trade):
         # Existing live positions migrate on their next cycle. Once a GTT exists,
@@ -49,6 +133,12 @@ class Engine:
                 raise ValueError("New entries are paused; existing exits continue")
             if stock not in cfg.stocks:
                 raise ValueError("Stock is outside the approved universe")
+            if self.calendar is not None:
+                self._market_snapshot()
+                self.calendar.require_open(stock, self.clock(), buffer=max(60, cfg.entry_timeout + cfg.cancel_timeout + 30))
+                if self._preflight()["status"] != "READY":
+                    raise ValueError("Daily/session preflight has not passed; inspect health and run preflight")
+                trades = self.store.all()  # preflight may have reconciled prior fills
             if hasattr(self.broker, "assert_entry_ready"):
                 self.broker.assert_entry_ready()
             active = [t for t in trades if t["state"] not in ("CLOSED", "NO_FILL")]
@@ -106,6 +196,8 @@ class Engine:
             return trade
 
     def _place(self, trade, side, quantity, limit=None):
+        if self.calendar is not None:
+            self.calendar.require_open(trade["stock"], self.clock(), buffer=60 if side == "BUY" else 10)
         if side == "SELL":
             if trade.get("protection") and not trade["protection"].get("released"):
                 raise RuntimeError("Broker protection still owns the exit; competing sell blocked")
@@ -124,6 +216,11 @@ class Engine:
             record["id"] = self.broker.submit(trade["stock"], side, quantity, tag, limit)
             record["status"] = "OPEN"
             self.store.save(trade, "ORDER_SUBMITTED")
+        except MarketClosed:
+            # The adapter's local guard rejected BEFORE sending any request.
+            trade["orders"].remove(record)
+            self.store.save(trade, "ORDER_DEFERRED_MARKET_CLOSED")
+            raise
         except Exception as exc:
             trade["error"] = "Submission outcome unknown: " + type(exc).__name__
             self.store.save(trade, "SUBMISSION_UNKNOWN")
@@ -151,6 +248,8 @@ class Engine:
         try:
             quote = self.broker.quote(trade["stock"])
             quote.check(self.clock(), self.config.max_quote_age)
+        except (MarketClosed, SessionUnavailable):
+            raise  # closure/expired authentication cannot authorize an emergency sell
         except Exception as exc:
             allowed = (bool(trade["reason"]) and
                        policy(self.config, trade)["emergency_exit_policy"] == "BROKER_PROTECTED_MARKET" and
@@ -172,8 +271,11 @@ class Engine:
         rules = policy(self.config, trade)
         remote = self.protection.sync(trade)
         self._refresh(trade)
+        can_act = self._can_act(trade)
         buy = trade["orders"][0]
         if buy["status"] not in ("COMPLETE", "CANCELLED", "REJECTED"):
+            if not can_act:
+                return
             if buy["filled"] or self.clock() >= buy["deadline"] or trade["reason"]:
                 self.supervisor.cancel(trade, buy, "ORDER", lambda: self.broker.cancel(buy["id"]))
             return  # cancellation must be confirmed before any sell can be sized
@@ -189,6 +291,8 @@ class Engine:
         trade["entry_price"] = str(buy["average"])
         if remaining == 0:
             if remote is not None and not remote.released:
+                if not can_act:
+                    return
                 self.protection.cancel(trade)
                 return  # never close a trade while a GTT could still sell later
             gross = sum((dec(o["average"]) * o["filled"] for o in trade["orders"]
@@ -210,12 +314,20 @@ class Engine:
         exits = [o for o in trade["orders"] if o["side"] == "SELL"]
         if any(o["status"] not in ("COMPLETE", "CANCELLED", "REJECTED") for o in exits):
             trade["state"] = "EXITING"
+            if not can_act:
+                return
             for o in exits:
                 if o["status"] not in ("COMPLETE", "CANCELLED", "REJECTED"):
                     if trade["reason"] == "OPERATOR_EXIT" or self.clock() >= o["deadline"]:
                         trade["exit_escalated"] = True
                         self.store.set("paused", True)
                         self.supervisor.cancel(trade, o, "ORDER", lambda: self.broker.cancel(o["id"]))
+            return
+        if not can_act:
+            # Continue authoritative reads, retaining the existing GTT and all
+            # intent/deadline/attempt state. Never spend retries on a closure.
+            self.broker.assert_inventory(trade["stock"], remaining, [o["id"] for o in trade["orders"]])
+            self.broker.assert_no_protection(trade["stock"], self.protection.owned_ids(trade["stock"]))
             return
         if remote is not None:
             if remote.status == "active":
@@ -270,6 +382,7 @@ class Engine:
     def tick(self):
         """One polling cycle. A failed symbol never stops protection of other symbols."""
         with self.store.locked():
+            self._preflight()
             for trade in self.store.all():
                 if trade["state"] in ("CLOSED", "NO_FILL"):
                     continue
@@ -280,6 +393,9 @@ class Engine:
                         trade.update(state="NO_FILL", reserved="0")
                     else:
                         self._progress(trade)
+                except MarketClosed:
+                    self._can_act(trade)  # session boundary crossed during network calls
+                    trade["error"] = None
                 except Exception as exc:
                     trade["error"] = f"{type(exc).__name__}: {exc}"
                     self.store.set("paused", True)

@@ -1,5 +1,6 @@
 """Run with python -m execution; paper mode is the default."""
 import argparse
+import getpass
 import json
 import math
 import os
@@ -11,6 +12,33 @@ from .store import Store
 from .brokers import PaperBroker
 from .engine import Engine
 from .supervision import health_snapshot
+
+
+def login(args, cfg):
+    from kiteconnect import KiteConnect
+    from .sessions import save_session
+    api_key = os.environ.get("KITE_API_KEY")
+    if not api_key:
+        raise ValueError("Set KITE_API_KEY in the local environment")
+    client = KiteConnect(api_key=api_key, timeout=10)
+    if args.command == "login-url":
+        print(client.login_url())
+        return 0
+    if not cfg.live_account_id:
+        raise ValueError("Configure live_account_id before login")
+    if not sys.stdin.isatty():
+        raise ValueError("Run login in an interactive terminal; do not pass tokens in command arguments")
+    secret = os.environ.get("KITE_API_SECRET") or getpass.getpass("Kite API secret: ")
+    request_token = getpass.getpass("Request token from your registered redirect URL: ")
+    try:
+        response = client.generate_session(request_token, api_secret=secret)
+        if client.profile().get("user_id") != cfg.live_account_id:
+            raise ValueError("Wrong account")
+    except Exception as exc:
+        raise RuntimeError("Login exchange failed (" + type(exc).__name__ + "); obtain a new request token before retrying") from None
+    metadata = save_session(args.session_file, response, api_key, cfg.live_account_id, time.time())
+    print(dumps(dict(status="SESSION_SAVED", session_file=args.session_file, **metadata)))
+    return 0
 
 
 def emit_alerts(health, previous):
@@ -44,12 +72,16 @@ def validate_account(args, cfg):
     else:
         if not args.live:
             raise ValueError("Account collection requires --live; offline analysis requires --snapshot")
-        missing = [name for name in ("KITE_API_KEY", "KITE_ACCESS_TOKEN") if not os.environ.get(name)]
+        api_key, token = os.environ.get("KITE_API_KEY"), os.environ.get("KITE_ACCESS_TOKEN")
+        if api_key and not token and os.path.exists(args.session_file):
+            from .sessions import read_session
+            token = read_session(args.session_file, api_key, expected, time.time())["access_token"]
+        missing = [name for name, value in (("KITE_API_KEY", api_key), ("KITE_ACCESS_TOKEN", token)) if not value]
         if missing:
             print(dumps(dict(status="BLOCKED", source="NOT_RUN", live_account_validated=False,
                              missing_environment=missing, detail="Configure credentials securely in the local environment; do not paste them into chat.")))
             return 2
-        client = readonly_client(os.environ["KITE_API_KEY"], os.environ["KITE_ACCESS_TOKEN"])
+        client = readonly_client(api_key, token)
         snapshot = collect(client, cfg, expected, order_ids=args.order_id, trigger_ids=args.trigger_id)
     report = analyze(snapshot, cfg, expected, previous=previous, replay=bool(args.snapshot))
     path = args.output or ("state/account-validation/" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") +
@@ -64,7 +96,8 @@ def main(argv=None):
     parser.add_argument("--config", default="config.paper.json")
     parser.add_argument("--db", default="state/engine.sqlite")
     parser.add_argument("--paper-db", default="state/paper.sqlite")
-    parser.add_argument("--live", action="store_true", help="Use Kite with credentials from environment")
+    parser.add_argument("--live", action="store_true", help="Use Kite with a private session receipt")
+    parser.add_argument("--session-file", default="state/live.kite-session.json")
     sub = parser.add_subparsers(dest="command", required=True)
     quote = sub.add_parser("quote", help="Set a paper quote")
     quote.add_argument("stock")
@@ -73,7 +106,7 @@ def main(argv=None):
     enter.add_argument("request_id")
     enter.add_argument("stock")
     enter.add_argument("budget")
-    for name in ("tick", "status", "health", "pause", "resume", "journal"):
+    for name in ("tick", "status", "health", "pause", "resume", "journal", "preflight", "login-url", "login"):
         sub.add_parser(name)
     flatten = sub.add_parser("flatten", help="Pause entries and request all positions closed")
     flatten.add_argument("--request-id")
@@ -100,10 +133,15 @@ def main(argv=None):
     validate.add_argument("--output", help="Private JSON report path; defaults to ignored state/account-validation")
     args = parser.parse_args(argv)
     cfg = Config.load(args.config)
+    if args.command in ("login-url", "login"):
+        return login(args, cfg)
+    if args.command == "run" and (not math.isfinite(args.interval) or args.interval < 3):
+        raise ValueError("Polling interval must be finite and at least 3 seconds")
     if args.command == "validate-account":
         return validate_account(args, cfg)  # no Engine/Store initialization or trading mutation
     store = Store(args.db)
     broker = None
+    runtime = None
     try:
         # Read-only status/health/journal and pause work without broker credentials or connectivity.
         if args.command in ("status", "health", "journal", "pause"):
@@ -126,13 +164,12 @@ def main(argv=None):
             if args.command == "quote":
                 raise ValueError("Cannot inject quotes into a live broker")
             from kiteconnect import KiteConnect
-            from .kite import KiteBroker
-            client = KiteConnect(api_key=os.environ["KITE_API_KEY"], timeout=10)
-            client.set_access_token(os.environ["KITE_ACCESS_TOKEN"])
-            broker = KiteBroker(client, cfg.stocks, live=True, expected_account=cfg.live_account_id)
+            from .live import LiveRuntime
+            runtime = LiveRuntime(cfg, store, os.environ.get("KITE_API_KEY"), args.session_file, KiteConnect)
+            engine = None if args.command == "run" else runtime.prepare()
         else:
             broker = PaperBroker(args.paper_db, cash=cfg.capital_limit, fees=cfg.fees)
-        engine = Engine(cfg, store, broker)
+            engine = Engine(cfg, store, broker)
         if args.command == "quote":
             broker.set_quote(args.stock, args.price)
         elif args.command == "entry":
@@ -140,6 +177,10 @@ def main(argv=None):
         elif args.command == "tick":
             print(dumps(engine.tick()))
             emit_alerts(engine.health(), set())
+        elif args.command == "preflight":
+            result = engine.preflight()
+            print(dumps(result))
+            return 0 if result["status"] in ("READY", "NOT_REQUIRED") else 2
         elif args.command == "resume":
             engine.pause(False)
         elif args.command == "flatten":
@@ -154,13 +195,13 @@ def main(argv=None):
         elif args.command == "resolve-protection-absent":
             engine.resolve_protection_absent(args.request_id, confirmed_not_created=args.confirmed_not_created)
         elif args.command == "run":
-            if not math.isfinite(args.interval) or args.interval < 3:
-                raise ValueError("Polling interval must be finite and at least 3 seconds")
             previous_alerts = set()
             while True:
                 try:
-                    trades = engine.tick()
-                    health = engine.health()
+                    if runtime is not None:
+                        trades, health = runtime.tick()
+                    else:
+                        trades, health = engine.tick(), engine.health()
                     print(dumps(dict(at=time.time(), trades=trades, health=health)), flush=True)
                     previous_alerts = emit_alerts(health, previous_alerts)
                 except Exception as exc:

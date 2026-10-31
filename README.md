@@ -43,6 +43,8 @@ deadline-based cancellation, confirmed residual sizing, and a replacement exit.
 - Pause/resume, flatten, status, JSON journal, and execution health beyond heartbeat.
 - Persistent paper broker and optional explicitly enabled Kite CNC equity adapter.
 - Read-only Kite account acceptance reports, explicit account binding and corrected delivery-inventory reconciliation.
+- Supported Kite login, private renewable session receipts, and expiry/revocation alerts.
+- Reviewed NSE/BSE execution calendars, pre-market validation and next-day recovery guards.
 - Lifecycle/recovery tests and GitHub Actions checks.
 
 ## Status and boundaries
@@ -52,6 +54,9 @@ API responses and the installed SDK; no live account/order validation has been
 performed. It requires your approved symbols, fee assumptions, broker credentials
 and deployment setup. The [account acceptance guide](Phase2A_Execution/ACCOUNT_ACCEPTANCE.md)
 provides a GET-only validation command; real-account evidence is still pending.
+The [session and market-hours guide](Phase2A_Execution/SESSIONS_AND_MARKETS.md)
+documents daily broker login and calendar maintenance. Bundled calendar coverage
+ends on 31 December 2026; unverified dates block new order actions.
 Protection starts after the entry is terminal and the GTT
 has been registered and verified; the fill-to-registration window is unprotected.
 GTTs are broker-held triggers that submit limit orders, not guaranteed exits:

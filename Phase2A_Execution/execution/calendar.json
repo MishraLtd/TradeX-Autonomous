@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "timezone": "Asia/Kolkata",
+  "reviewed_on": "2026-10-31",
+  "valid_from": "2026-10-31",
+  "valid_through": "2026-12-31",
+  "notes": "Conservative execution windows only, not the complete exchange timetable. Engine actions stop at 15:15 for all stocks to exclude closing auctions. NSE circulars and Zerodha's published NSE/BSE operating calendar were reviewed. Update from exchange/broker circulars before coverage expires or a schedule changes.",
+  "exchanges": {
+    "NSE": {
+      "regular": ["09:15", "15:15"],
+      "holidays": ["2026-11-10", "2026-11-24", "2026-12-25"],
+      "special": {"2026-11-08": ["14:20", "15:15"]},
+      "sources": [
+        "https://www.nseindia.com/resources/exchange-communication-holidays?apiversion=v2",
+        "https://www.nseindia.com/static/products-services/closing-auction-session",
+        "https://nsearchives.nseindia.com/content/circulars/CMTR76941.pdf"
+      ]
+    },
+    "BSE": {
+      "regular": ["09:15", "15:15"],
+      "holidays": ["2026-11-10", "2026-11-24", "2026-12-25"],
+      "special": {"2026-11-08": ["14:20", "15:15"]},
+      "sources": [
+        "https://zerodha.com/marketintel/holiday-calendar/",
+        "https://zerodha.com/marketintel/bulletin/461711/muhurat-trading-session-on-account-of-diwali-november-2026",
+        "https://zerodha.com/z-connect/general/everything-you-need-to-know-about-closing-auction-session-cas"
+      ]
+    }
+  }
+}

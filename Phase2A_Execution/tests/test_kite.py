@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import Mock
 from execution.kite import KiteBroker
 from execution.protection import ProtectionSpec
+from execution.market import MarketClosed
 
 
 class KiteTests(unittest.TestCase):
@@ -17,7 +18,8 @@ class KiteTests(unittest.TestCase):
         self.client.orders.return_value = []
         self.client.get_gtts.return_value = []
         self.client.place_order.return_value = "123"
-        self.broker = KiteBroker(self.client, {"NSE:DEMO": ".05"}, live=True, min_interval=0)
+        self.broker = KiteBroker(self.client, {"NSE:DEMO": ".05"}, live=True, min_interval=0,
+                                 clock=lambda: datetime(2026, 11, 2, 5, tzinfo=timezone.utc).timestamp())
 
     def test_live_requires_explicit_enable(self):
         with self.assertRaises(ValueError):
@@ -35,6 +37,16 @@ class KiteTests(unittest.TestCase):
     def test_tick_mismatch_fails_startup(self):
         with self.assertRaises(ValueError):
             KiteBroker(self.client, {"NSE:DEMO": ".01"}, live=True, min_interval=0)
+
+    def test_live_adapter_rejects_closed_market_quotes_and_orders(self):
+        self.broker.clock = lambda: datetime(2026, 11, 2, 12, tzinfo=timezone.utc).timestamp()
+        for side in ("BUY", "SELL"):
+            with self.assertRaises(MarketClosed):
+                self.broker.submit("NSE:DEMO", side, 3, "tag", Decimal("100.05"))
+        with self.assertRaises(MarketClosed):
+            self.broker.quote("NSE:DEMO")
+        self.client.place_order.assert_not_called()
+        self.client.quote.assert_not_called()
 
     def test_no_leverage_in_cash(self):
         self.client.margins.return_value = {"enabled": True, "net": 80, "available": {"cash": 100, "live_balance": 80, "collateral": 100000}}

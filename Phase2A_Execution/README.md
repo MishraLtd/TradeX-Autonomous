@@ -67,6 +67,7 @@ schedule. Copy it to ignored `config.live.json` when configuring a real account.
 | `emergency_exit_policy` | `BROKER_PROTECTED_MARKET` permits confirmed exits through a capable broker when local quotes fail; `WAIT_FOR_FRESH_QUOTE` requires a fresh quote. |
 | `health_max_age` | Maximum heartbeat/reconciliation age for the read-only health check (default 30 seconds). |
 | `live_account_id` | Exact expected Kite user ID, required before new live entries. Leave null in paper mode. |
+| `market_calendar` | Optional reviewed calendar JSON path for live execution. Default is the bounded bundled NSE/BSE schedule; unknown dates block order actions. |
 
 Money uses `Decimal`. Tick size, fees, target, stop, exit mode and stop-limit
 buffer are snapshotted per trade; restarting with new percentages does not move
@@ -148,8 +149,9 @@ responses block replacement sells and appear in the journal/status.
   recovery cannot run while the worker is offline or the broker is unreachable.
 - GTTs can expire, be disabled, or fail to submit an order. The worker must run to
   detect these conditions and reconcile/follow up; it cannot repair them offline.
-- Broker sell authorization, session renewal, trading restrictions and market
-  liquidity still apply. This implementation has no live-account acceptance test.
+- Broker sell authorization, trading restrictions and market liquidity still
+  apply. Session renewal now has a supported workflow; actual live-account
+  acceptance evidence is still pending.
 - The paper broker models GTTs independently on each injected fresh quote. It
   models gaps and partial fills, but not market calendars, order-book liquidity,
   or automatic exchange end-of-day cancellation; it is not a live certification.
@@ -228,6 +230,12 @@ pause remains in place until `resume`; that command refuses active errors or
 execution alerts. `HEALTHY` with `paused: true` means reconciliation is healthy
 but new buys remain deliberately disabled. Choose monitoring thresholds and a
 poll interval that accommodate the expected number of positions and API latency.
+
+Session, calendar and preflight alerts also appear in health. These readiness
+gates block new entries without clearing an existing manual pause. Read the
+[sessions and market-hours guide](SESSIONS_AND_MARKETS.md) for daily login,
+calendar maintenance and the difference between a running worker and a verified
+broker session. Normal execution-window closure does not cause feed alerts.
 
 ## State and recovery
 
@@ -317,9 +325,13 @@ those observations are collected and reviewed.
 
 ```bash
 python -m pip install -r requirements-live.txt
-# Set KITE_API_KEY and KITE_ACCESS_TOKEN securely in the worker environment.
+# Set KITE_API_KEY securely in the worker environment.
 # Set live_account_id and approved real instruments in config.live.json.
+python -m execution --config config.live.json login-url
+# Complete Kite login, then enter the returned request token at the hidden prompt:
+python -m execution --config config.live.json login
 python -m execution --config config.live.json --live validate-account
+python -m execution --config config.live.json --db state/live.sqlite --live preflight
 python -m execution --config config.live.json --db state/live.sqlite --live run
 ```
 
@@ -332,9 +344,13 @@ live broker calls or trades were used to validate this implementation. Do a
 controlled account integration check before relying on it unattended.
 
 CNC holdings may require depository sell authorization. Supply the correct
-account setup; this engine does not bypass that requirement. Session access
-tokens must be obtained/refreshed outside this engine; credentials are read only
-from environment variables and never written into the trade journal.
+account setup; this engine does not bypass that requirement. Complete the
+supported manual Kite login before each trading day; the engine exchanges the
+request token, stores a private receipt and reloads replacements automatically.
+Tokens are never written into the trade journal. See
+[SESSIONS_AND_MARKETS.md](SESSIONS_AND_MARKETS.md) for expiry/revocation handling,
+the reviewed calendar (currently through December 2026), pre-market validation
+and next-day recovery. Paper mode remains independent of wall-clock market hours.
 
 Keep `exit_mode` set to `BROKER_OCO`; live startup rejects `SOFTWARE`. Run with a
 supervisor and monitor the `health` command and structured execution alerts.

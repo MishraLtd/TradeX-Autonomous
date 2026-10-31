@@ -13,30 +13,42 @@ import time
 from .models import Quote, Order, dec
 from .protection import Protection, ProtectionSpec
 from .account import cash_available, check_profile, inventory
+from .market import MarketCalendar
 
 
 class KiteBroker:
     protection_required = True
     supports_emergency_exit = True  # SELL submission uses broker market_protection=-1
+    requires_market_hours = True
 
-    def __init__(self, client, stocks, *, live=False, min_interval=0.35, expected_account=None):
+    def __init__(self, client, stocks, *, live=False, min_interval=0.35, expected_account=None,
+                 calendar=None, clock=time.time):
         if not live:
             raise ValueError("Live broker requires explicit live=True")
         self.client = client
+        self.calendar, self.clock = calendar or MarketCalendar.load(), clock
         self.stocks, self.expected_account = stocks, expected_account
         self.min_interval, self._last_call, self._last_quote = min_interval, 0.0, 0.0
         self.identity = "kite:" + self._call(client.profile)["user_id"]
         if expected_account is not None and self.identity != "kite:" + expected_account:
             raise ValueError("Kite account does not match the configured account ID")
-        for exchange in {s.split(":")[0] for s in stocks}:
-            instruments = {r["tradingsymbol"]: r for r in self._call(client.instruments, exchange)}
-            for stock, tick in stocks.items():
+        self.validate_instruments()
+
+    def validate_instruments(self):
+        for exchange in {s.split(":")[0] for s in self.stocks}:
+            instruments = {r["tradingsymbol"]: r for r in self._call(self.client.instruments, exchange)}
+            for stock, tick in self.stocks.items():
                 ex, symbol = stock.split(":")
                 if ex != exchange:
                     continue
                 row = instruments.get(symbol)
                 if not row or row["instrument_type"] != "EQ" or row["lot_size"] != 1 or dec(row["tick_size"]) != dec(tick):
                     raise ValueError("Whitelist/tick does not match Kite equity instrument: " + stock)
+
+    def preflight(self):
+        self.assert_entry_ready()
+        self.validate_instruments()
+        return dict(cash_available=str(self.available_cash()))
 
     def _call(self, method, *args, **kwargs):
         time.sleep(max(0, self.min_interval - (time.monotonic() - self._last_call)))
@@ -55,6 +67,7 @@ class KiteBroker:
             raise ValueError("Broker account changed during this session")
 
     def quote(self, stock):
+        self.calendar.require_open(stock, self.clock())
         time.sleep(max(0, (1.05 if self.min_interval else 0) - (time.monotonic() - self._last_quote)))
         row = self._call(self.client.quote, stock).get(stock)
         self._last_quote = time.monotonic()
@@ -95,17 +108,38 @@ class KiteBroker:
         return matches[0] if matches else None
 
     def assert_inventory(self, stock, expected, own_order_ids):
+        self._check_inventory(stock, expected, own_order_ids, self._call(self.client.holdings),
+                              self._call(self.client.positions), self._call(self.client.orders))
+
+    @classmethod
+    def _check_inventory(cls, stock, expected, own_order_ids, holdings, positions, orders):
         def match(row):
             return row["exchange"] + ":" + row["tradingsymbol"] == stock
-        snapshot = inventory(stock, self._call(self.client.holdings), self._call(self.client.positions))
+        snapshot = inventory(stock, holdings, positions)
         owned = snapshot["owned"]
         if owned != expected:
             raise ValueError(f"Inventory mismatch for {stock}: broker={owned}, engine={expected}")
-        for row in self._call(self.client.orders):
-            if match(row) and str(row["order_id"]) not in own_order_ids and not self._order(row).terminal:
+        for row in orders:
+            if match(row) and str(row["order_id"]) not in own_order_ids and not cls._order(row).terminal:
                 raise ValueError("Unmanaged pending order on managed stock")
 
+    def preflight_inventory(self, expected, order_ids, trigger_ids):
+        # One account snapshot per daily check, rather than four requests for
+        # every symbol in a potentially large approved universe.
+        holdings = self._call(self.client.holdings)
+        positions = self._call(self.client.positions)
+        orders = self._call(self.client.orders)
+        triggers = self._call(self.client.get_gtts)
+        for stock, quantity in expected.items():
+            self._check_inventory(stock, quantity, order_ids.get(stock, []), holdings, positions, orders)
+        for row in triggers:
+            stock = self._gtt_stock(row)
+            if (stock in expected and str(row["id"]) not in trigger_ids.get(stock, []) and
+                    row["status"] not in ("deleted", "cancelled", "expired", "rejected")):
+                raise ValueError("Unmanaged GTT on managed stock; reconcile it before trading")
+
     def submit(self, stock, side, quantity, tag, limit=None):
+        self.calendar.require_open(stock, self.clock(), buffer=60 if side == "BUY" else 10)
         exchange, symbol = stock.split(":")
         args = dict(variety="regular", exchange=exchange, tradingsymbol=symbol,
                     transaction_type=side, quantity=quantity, product="CNC", validity="IOC", tag=tag)
@@ -136,6 +170,7 @@ class KiteBroker:
                 raise ValueError("Unmanaged GTT on managed stock; reconcile it before trading")
 
     def create_protection(self, spec, last_price):
+        self.calendar.require_open(spec.stock, self.clock())
         if not dec(spec.stop) < dec(last_price) < dec(spec.target):
             raise ValueError("Market price already outside protection levels")
         exchange, symbol = spec.stock.split(":")

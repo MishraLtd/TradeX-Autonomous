@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass
 from decimal import ROUND_FLOOR
 
 from .models import dec, positive
+from .market import MarketClosed
 
 
 @dataclass(frozen=True)
@@ -127,11 +128,19 @@ class ProtectionManager:
         # Capture existing IDs to prevent adopting an older/unrelated trigger
         # after a timed-out create. There is only one creation attempt.
         previous = self.broker.protection_ids(trade["stock"])
+        self.supervisor.require_open(trade)
         trade["protection"] = dict(id="", spec=asdict(spec), status="unknown", health="UNCONFIRMED",
                                    released=False, created=self.clock(), previous_ids=previous,
                                    cancel_requested=False)
         self.store.save(trade, "GTT_CREATE_INTENT")
-        result = self.broker.create_protection(spec, quote.price)
+        try:
+            result = self.broker.create_protection(spec, quote.price)
+        except MarketClosed:
+            # A local pre-send rejection is definite absence, unlike an SDK
+            # timeout or unknown registration response.
+            trade.pop("protection")
+            self.store.save(trade, "GTT_DEFERRED_MARKET_CLOSED")
+            raise
         if not result:
             raise RuntimeError("Broker returned no GTT ID")
         trade["protection"]["id"] = str(result)
@@ -141,6 +150,7 @@ class ProtectionManager:
         return self.sync(trade)
 
     def cancel(self, trade):
+        self.supervisor.require_open(trade)
         saved = trade["protection"]
         if not saved["id"]:
             raise RuntimeError("Cannot cancel an unidentified GTT")

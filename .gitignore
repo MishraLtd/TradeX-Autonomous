@@ -9,3 +9,5 @@ state/
 *.sqlite.lock
 config.live.json
 *.kite-evidence.json
+*.kite-session.json
+.kite-session-*

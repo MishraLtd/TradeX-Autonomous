@@ -3,6 +3,8 @@
 Timeouts authorize escalation, NEVER an assumption that an order did not fill.
 All replacement sizing still requires authoritative terminal broker state.
 """
+from datetime import datetime
+from .market import IST, MarketCalendar
 
 TERMINAL = ("COMPLETE", "CANCELLED", "REJECTED")
 POLICY_FIELDS = ("entry_timeout", "exit_timeout", "cancel_timeout", "submission_timeout",
@@ -14,8 +16,9 @@ def policy(config, trade):
 
 
 class Supervisor:
-    def __init__(self, config, store, clock):
+    def __init__(self, config, store, clock, require_open=None):
         self.config, self.store, self.clock = config, store, clock
+        self.require_open = require_open or (lambda trade: None)
 
     def prepare(self, trade):
         if "execution_policy" not in trade:
@@ -37,6 +40,7 @@ class Supervisor:
 
     def cancel(self, trade, record, kind, send):
         """Called only after reading a still-active broker order/trigger."""
+        self.require_open(trade)
         now, rules = self.clock(), policy(self.config, trade)
         cancellation = record.setdefault("cancel", dict(requested_at=now,
             deadline=now + rules["cancel_timeout"], attempts=0, next_attempt_at=now))
@@ -97,9 +101,13 @@ def trade_alerts(config, trade, now):
             deadline = o.get("submission_deadline", o["submitted"] + rules["submission_timeout"])
             uncertain("SUBMISSION_UNRESOLVED", o["tag"], deadline, "Order submission outcome is unknown",
                       "Verify the broker order by tag; never resubmit based on timeout or an empty daily book.")
-        elif o["side"] == "SELL" and now >= o.get("deadline", o["submitted"] + rules["exit_timeout"]):
-            add("EXIT_TIMEOUT", "WARNING", o["id"], "Sell exceeded its execution deadline",
-                "Cancel, confirm final fills, then retry only the residual within the attempt limit.", o.get("deadline"))
+        elif now >= o.get("deadline", o["submitted"] + rules["exit_timeout" if o["side"] == "SELL" else "entry_timeout"]):
+            if o["side"] == "SELL":
+                add("EXIT_TIMEOUT", "WARNING", o["id"], "Sell exceeded its execution deadline",
+                    "Cancel, confirm final fills, then retry only the residual within the attempt limit.", o.get("deadline"))
+            else:
+                add("ENTRY_TIMEOUT", "WARNING", o["id"], "Entry exceeded its execution deadline",
+                    "Reconcile and cancel in a supported session; no exit can be sized before final fills are confirmed.", o.get("deadline"))
         cancellation(o, "ORDER")
     p = trade.get("protection", {})
     if p and not p.get("confirmed_absent"):
@@ -144,6 +152,43 @@ def health_snapshot(store, config, now):
     heartbeat = store.get("heartbeat")
     fresh = heartbeat is not None and 0 <= now - heartbeat <= config.health_max_age
     alerts = [a for t in trades for a in trade_alerts(config, t, now)]
+    def operational(code, severity, message, action):
+        alerts.append(dict(code=code, severity=severity, trade_id=None, ref="runtime", deadline=None,
+                           message=message, action=action))
+    session = store.get("session")
+    if session:
+        state = session["state"]
+        if state == "VALID" and now >= session["expires_at"]:
+            state = "EXPIRED"
+        if state != "VALID":
+            operational("SESSION_" + state, "CRITICAL", "Live broker session is " + state.lower(),
+                        "Complete login-url/login and replace the private session file; the worker reloads it automatically.")
+        elif session["expires_at"] - now <= 3600:
+            operational("SESSION_EXPIRING", "WARNING", "Broker session expires within one hour",
+                        "Arrange the next supported Kite login; expiry is not automatically refreshable.")
+        elif now - session["verified_at"] > 90 or now < session["verified_at"]:
+            operational("SESSION_CHECK_STALE", "CRITICAL", "Session verification is stale",
+                        "Restore the worker and broker connectivity.")
+        session = dict(session, state=state)
+    market = store.get("market")
+    if store.get("calendar"):
+        calendar = MarketCalendar(store.get("calendar"))
+        stocks = set(config.stocks) | {t["stock"] for t in trades if t["state"] not in ("CLOSED", "NO_FILL")}
+        market = calendar.snapshot(stocks, now)
+        if any(s["state"] == "UNKNOWN" for s in market.values()):
+            operational("CALENDAR_UNVERIFIED", "CRITICAL", "An exchange/date has no reviewed execution schedule",
+                        "Install a verified calendar covering the required exchanges and dates, then restart the worker.")
+        elif (calendar.end - datetime.fromtimestamp(now, IST).date()).days <= 7:
+            operational("CALENDAR_EXPIRING", "WARNING", "Exchange calendar coverage expires within seven days",
+                        "Review exchange circulars and install the next calendar before its coverage expires.")
+    preflight = store.get("preflight")
+    if preflight and preflight["status"] == "FAILED":
+        operational("PREFLIGHT_FAILED", "CRITICAL", preflight["error"],
+                    "Correct the account, instruments, calendar or inventory discrepancy and run preflight again.")
+    runtime = store.get("live_runtime")
+    if runtime and not runtime["ready"]:
+        operational("LIVE_RUNTIME_BLOCKED", "CRITICAL", runtime["error"],
+                    "Restore the session/connectivity/configuration; the running worker retries initialization.")
     if not fresh:
         alerts.append(dict(code="WORKER_STALE", severity="CRITICAL", trade_id=None, ref="worker", deadline=None,
                            message="Worker heartbeat is missing, stale or in the future",
@@ -151,4 +196,5 @@ def health_snapshot(store, config, now):
     severity = "CRITICAL" if any(a["severity"] == "CRITICAL" for a in alerts) else "DEGRADED" if alerts else "HEALTHY"
     return dict(status=severity, checked_at=now, worker=dict(heartbeat=heartbeat, fresh=fresh),
                 paused=store.get("paused", False), alerts=alerts,
+                session=session, market=market, preflight=preflight,
                 active_trades=sum(t["state"] not in ("CLOSED", "NO_FILL") for t in trades))

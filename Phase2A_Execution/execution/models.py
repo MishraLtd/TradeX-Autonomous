@@ -71,8 +71,11 @@ class Config:
     health_max_age: float = 30
     emergency_exit_policy: str = "BROKER_PROTECTED_MARKET"
     live_account_id: str | None = None
+    market_calendar: str | None = None
 
     def __post_init__(self):
+        if self.market_calendar is not None and (not isinstance(self.market_calendar, str) or not self.market_calendar):
+            raise ValueError("market_calendar must be a calendar JSON path")
         if not self.stocks:
             raise ValueError("At least one approved stock is required")
         for key, tick in self.stocks.items():
