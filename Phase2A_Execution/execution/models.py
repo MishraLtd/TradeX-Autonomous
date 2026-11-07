@@ -77,8 +77,11 @@ class Config:
     broker_request_timeout: float = 5
     reconnect_max_delay: float = 30
     exit_response_timeout: float = 60
+    cost_profile: str | None = None
 
     def __post_init__(self):
+        if self.cost_profile is not None and (not isinstance(self.cost_profile, str) or not self.cost_profile):
+            raise ValueError("cost_profile must be an account cost profile JSON path")
         if self.market_calendar is not None and (not isinstance(self.market_calendar, str) or not self.market_calendar):
             raise ValueError("market_calendar must be a calendar JSON path")
         if not self.stocks:
@@ -169,12 +172,17 @@ class Order:
 
 def exit_levels(average, quantity, tick, profit_pct, stop_pct, fees):
     """Profit is net of estimated fees; stop is a gross price-distance rule."""
+    if type(quantity) is not int or quantity < 1:
+        raise ValueError("Exit quantity must be a positive integer")
     average, tick = positive(average), positive(tick)
     invested = average * quantity
     desired = invested * dec(profit_pct) / 100
-    proceeds = (invested + fees.cost("BUY", invested) + desired + dec(fees.sell_fixed))
-    target = proceeds / (quantity * (1 - dec(fees.sell_bps) / 10000))
-    target = (target / tick).to_integral_value(rounding=ROUND_CEILING) * tick
+    if hasattr(fees, "target"):
+        target = fees.target(average, quantity, tick, profit_pct)
+    else:
+        proceeds = (invested + fees.cost("BUY", invested) + desired + dec(fees.sell_fixed))
+        target = proceeds / (quantity * (1 - dec(fees.sell_bps) / 10000))
+        target = (target / tick).to_integral_value(rounding=ROUND_CEILING) * tick
     stop = (average * (1 - dec(stop_pct) / 100) / tick).to_integral_value(
         rounding=ROUND_CEILING) * tick
     if not 0 < stop < average < target:

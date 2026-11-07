@@ -55,7 +55,8 @@ schedule. Copy it to ignored `config.live.json` when configuring a real account.
 | `stop_pct` | Gross price distance below average fill; this is not a guaranteed maximum net loss. |
 | `exit_mode` | `BROKER_OCO` (default) registers paired broker GTT exits. Live Kite requires this mode. `SOFTWARE` is available only for paper comparisons. |
 | `stop_limit_buffer_pct` | Stop sell limit distance below the stop trigger, rounded down to a tick (default 0.5%). A larger buffer accepts a lower execution price; it does not guarantee a fill. |
-| `fees` | Per-side basis points and fixed charges per order. Include a delivery/DP allowance where appropriate. |
+| `fees` | Legacy/paper per-side basis points and fixed charges per order; remains the paper broker's simulated cash-fee model. |
+| `cost_profile` | Reviewed account-bound component cost profile JSON path, required for new live entries. See [costs and reconciliation](COSTS_AND_RECONCILIATION.md). |
 | `max_positions` | Maximum concurrent entries/positions. |
 | `max_quote_age` | Freshness limit in seconds (also rejects future timestamps). |
 | `entry_timeout` | Cancel a nonterminal entry after this many seconds. Partial entries are cancelled immediately. |
@@ -94,7 +95,7 @@ fill. There is no averaging down, shorting or leverage.
 
 ## Automatic exit calculation
 
-For average fill `P`, filled quantity `Q`, net target fraction `r`, estimated buy
+For legacy/paper `fees`, average fill `P`, filled quantity `Q`, net target fraction `r`, estimated buy
 fees `B`, sell fixed fee `F` and sell proportional rate `s`:
 
 ```text
@@ -107,11 +108,21 @@ impossible after a fill, the engine requests an exit instead of inventing an
 invalid stop. Example demo: 9 shares filled at 100, 2% net target, 1% stop, 15 bps
 per side and a 20 fixed sell allowance -> target 104.55, stop 99.00.
 
-Targets assume one exit order. Additional partial-exit orders, actual broker
-charges and slippage can change realized net profit. The journal labels P&L
-`estimated_net_pnl`; it is not reconciled contract-note P&L. The existing Phase 2B
-cost engine is preserved separately; this module uses the explicit fee profile
-above rather than claiming that its rates have been validated for your account.
+That legacy formula assumes one exit order. New live entries require an account
+cost profile: targets reserve conservative delivery/intraday component charges
+and up to `max_exit_attempts` filled sells, including DP and rounding allowances.
+Whole-share sizing includes the buy allowance. Partial same-day CNC exits can
+incur both full-order brokerage and delivery taxes, so the model covers that
+mixture. The profile is saved with the trade; existing targets remain unchanged.
+
+Closure P&L remains `estimated_net_pnl`. The new `reconcile-finances` command
+compares independent broker evidence with fills, owned shares, cash and realized
+P&L, then records matched actual/allocated costs in `financials`. It preserves
+original estimates and blocks new live entries on missing prior-day evidence or
+financial discrepancies, while existing exits continue. See the
+[costs and reconciliation guide](COSTS_AND_RECONCILIATION.md) for profile setup,
+evidence schema, source checks, daily gates and current limitations. Real-account
+financial acceptance remains pending; the Phase 2B research library stays separate.
 
 ## Broker-held target and stop
 

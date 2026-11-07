@@ -18,6 +18,7 @@ from execution.market import IST, MarketCalendar, MarketClosed
 from execution.sessions import SessionClient, SessionUnavailable, expires_at, read_session, save_session
 from execution.store import Store
 from execution.supervision import health_snapshot
+from finance_fixtures import profile as cost_profile
 
 
 def instant(text):
@@ -88,6 +89,7 @@ class SessionTests(unittest.TestCase):
         self.now = instant("2026-11-02 10:00")
         self.clock = lambda: self.now
         self.cfg = Config({"NSE:DEMO": ".05"}, "2000", "1000", "2", "1", live_account_id="TEST")
+        self.cfg = replace(self.cfg, cost_profile=cost_profile(self.root)[0])
         self.sdk = Mock()
         self.sdk.profile.return_value = dict(user_id="TEST", exchanges=["NSE"], products=["CNC"],
                                             order_types=["LIMIT", "MARKET"], meta={"demat_consent": "physical"})

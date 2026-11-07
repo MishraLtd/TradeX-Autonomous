@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "example": true,
+  "account_id": "REPLACE_WITH_KITE_ACCOUNT_ID",
+  "profile_id": "REPLACE_WITH_ACCOUNT_TARIFF_VERSION",
+  "valid_from": "2026-11-07",
+  "valid_until": "2026-12-31",
+  "reviewed_by": "REPLACE_AFTER_REVIEW",
+  "source_reference": "Template only. Public resident-individual NSE charges checked 2026-11-07: https://zerodha.com/charges/ . Replace with account-specific tariff and evidence references.",
+  "stocks": {
+    "NSE:INFY": {
+      "DELIVERY": {
+        "brokerage_bps": "0",
+        "brokerage_cap": null,
+        "brokerage_min": "0.01",
+        "exchange_bps": "0.307",
+        "sebi_bps": "0.01",
+        "ipft_bps": "0.00001",
+        "gst_pct": "18",
+        "stt_buy_bps": "10",
+        "stt_sell_bps": "10",
+        "stamp_buy_bps": "1.5",
+        "stamp_sell_bps": "0",
+        "buy_fixed": "0",
+        "sell_fixed": "0",
+        "dp_sell": "15.34",
+        "rounding_buffer": "1"
+      },
+      "INTRADAY": {
+        "brokerage_bps": "3",
+        "brokerage_cap": "20",
+        "brokerage_min": "0",
+        "exchange_bps": "0.307",
+        "sebi_bps": "0.01",
+        "ipft_bps": "0.00001",
+        "gst_pct": "18",
+        "stt_buy_bps": "0",
+        "stt_sell_bps": "2.5",
+        "stamp_buy_bps": "0.3",
+        "stamp_sell_bps": "0",
+        "buy_fixed": "0",
+        "sell_fixed": "0",
+        "dp_sell": "0",
+        "rounding_buffer": "1"
+      }
+    }
+  }
+}

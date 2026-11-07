@@ -133,6 +133,12 @@ def main(argv=None):
     validate.add_argument("--previous", help="Earlier private capture for settlement comparison")
     validate.add_argument("--snapshot", help="Offline replay only; cannot validate a live account")
     validate.add_argument("--output", help="Private JSON report path; defaults to ignored state/account-validation")
+    financial_template = sub.add_parser("finance-template", help="Write an incomplete private evidence template and engine order reference")
+    financial_template.add_argument("--output", required=True)
+    financial = sub.add_parser("reconcile-finances", help="Compare cumulative broker statements with engine records; no broker requests")
+    financial.add_argument("--evidence", required=True, help="Normalized financial evidence JSON and its source files")
+    financial.add_argument("--output", help="Private report path; defaults to ignored state/finance")
+    financial.add_argument("--replay", action="store_true", help="Analyze only; do not record a receipt or change entry gates")
     args = parser.parse_args(argv)
     cfg = Config.load(args.config)
     if args.command in ("login-url", "login"):
@@ -145,6 +151,26 @@ def main(argv=None):
     broker = None
     runtime = None
     try:
+        if args.command in ("finance-template", "reconcile-finances"):
+            from pathlib import Path
+            from .acceptance import save_private
+            from .finance import read_json, reconcile, record_report, template
+            with store.locked():
+                if args.command == "finance-template":
+                    save_private(args.output, template(store, cfg, time.time()))
+                    print(dumps(dict(status="INCOMPLETE_TEMPLATE", path=args.output)))
+                    return 0
+                evidence = read_json(args.evidence)
+                report = reconcile(evidence, store.all(), store.get("account"), cfg,
+                                   Path(args.evidence).resolve().parent, time.time())
+                if not args.replay:
+                    record_report(store, report)
+                path = args.output or "state/finance/" + report["report_id"] + ".financial-report.json"
+                save_private(path, dict(report, replay=args.replay))
+                print(dumps(dict(status=report["status"], report_id=report["report_id"], report_path=path,
+                                 replay=args.replay, financial_match=report["financial_match"],
+                                 issues=report["issues"], warnings=report["warnings"])))
+                return 0 if report["status"] == "MATCHED" else 2
         # Read-only status/health/journal and pause work without broker credentials or connectivity.
         if args.command in ("status", "health", "journal", "pause"):
             with store.locked() if args.command == "pause" else nullcontext():

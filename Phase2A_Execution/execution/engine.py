@@ -4,12 +4,14 @@ from decimal import Decimal, ROUND_CEILING
 import time
 import uuid
 
-from .models import Fees, Order, dec, positive, exit_levels
+from .models import Order, dec, positive, exit_levels
 from .protection import ProtectionManager
 from .supervision import Supervisor, health_snapshot, policy, trade_alerts
 from .market import MarketCalendar, MarketClosed
 from .sessions import SessionUnavailable
 from .polling import exit_response, mark_exit_sent, operational_alerts
+from .costs import affordable_quantity, load_plan, trade_fees
+from .finance import financial_alerts
 
 
 class Engine:
@@ -135,6 +137,8 @@ class Engine:
                 raise ValueError("New entries are paused; existing exits continue")
             if operational_alerts(self.store, cfg, self.clock()):
                 raise ValueError("Restore fresh data and complete polling recovery before new entries")
+            if financial_alerts(self.store, cfg, self.clock()):
+                raise ValueError("Resolve account costs and financial reconciliation alerts before new live entries")
             if stock not in cfg.stocks:
                 raise ValueError("Stock is outside the approved universe")
             if self.calendar is not None:
@@ -173,17 +177,22 @@ class Engine:
             tick = positive(cfg.stocks[stock])
             limit = (dec(quote.price) * Decimal("1.002") / tick).to_integral_value(
                 rounding=ROUND_CEILING) * tick
-            quantity = int((budget - dec(cfg.fees.buy_fixed)) /
-                           (limit * (1 + dec(cfg.fees.buy_bps) / 10000)))
+            fees = cfg.fees
+            if cfg.cost_profile:
+                account = self.broker.identity[5:] if self.broker.identity.startswith("kite:") else cfg.live_account_id
+                fees = load_plan(cfg.cost_profile, account, stock, self.clock(), cfg.max_exit_attempts)
+            quantity = affordable_quantity(budget, limit, fees)
             if quantity < 1:
                 raise ValueError("Budget cannot afford one share including estimated fees")
-            exit_levels(limit, quantity, tick, cfg.profit_pct, cfg.stop_pct, cfg.fees)
+            exit_levels(limit, quantity, tick, cfg.profit_pct, cfg.stop_pct, fees)
             trade = dict(id=request_id, stock=stock, budget=str(budget), reserved=str(budget),
                          state="ENTERING", quantity=quantity, tick=str(tick),
                          profit_pct=cfg.profit_pct, stop_pct=cfg.stop_pct,
                          fees=asdict(cfg.fees), orders=[], reason=None, error=None,
                          exit_mode=cfg.exit_mode, stop_limit_buffer_pct=cfg.stop_limit_buffer_pct,
                          created=self.clock(), target=None, stop=None)
+            if cfg.cost_profile:
+                trade["cost_plan"] = fees.data
             self.store.save(trade, "ENTRY_ACCEPTED")
             self.supervisor.prepare(trade)
             self._place(trade, "BUY", quantity, limit)
@@ -326,7 +335,7 @@ class Engine:
                 return  # never close a trade while a GTT could still sell later
             gross = sum((dec(o["average"]) * o["filled"] for o in trade["orders"]
                          if o["side"] == "SELL"), Decimal(0)) - dec(buy["average"]) * bought
-            fees = Fees(**trade["fees"])
+            fees = trade_fees(trade)
             charges = sum((fees.cost(o["side"], dec(o["average"]) * o["filled"])
                            for o in trade["orders"] if o["filled"]), Decimal(0))
             trade.update(state="CLOSED", reserved="0", gross_pnl=str(gross),
@@ -335,7 +344,7 @@ class Engine:
         if trade["target"] is None:
             try:
                 target, stop = exit_levels(buy["average"], bought, trade["tick"],
-                                          trade["profit_pct"], trade["stop_pct"], Fees(**trade["fees"]))
+                                          trade["profit_pct"], trade["stop_pct"], trade_fees(trade))
                 trade.update(target=str(target), stop=str(stop))
             except ValueError:
                 trade["reason"] = "INVALID_EXIT_LEVELS"
@@ -467,6 +476,8 @@ class Engine:
         with self.store.locked():
             if not paused and operational_alerts(self.store, self.config, self.clock()):
                 raise ValueError("Complete data/polling recovery before resuming entries")
+            if not paused and financial_alerts(self.store, self.config, self.clock()):
+                raise ValueError("Resolve financial reconciliation alerts before resuming entries")
             if not paused and any(t.get("error") or trade_alerts(self.config, t, self.clock()) for t in self.store.all()
                                   if t["state"] not in ("CLOSED", "NO_FILL")):
                 raise ValueError("Resolve active errors and execution alerts before resuming")

@@ -46,6 +46,7 @@ deadline-based cancellation, confirmed residual sizing, and a replacement exit.
 - Supported Kite login, private renewable session receipts, and expiry/revocation alerts.
 - Reviewed NSE/BSE execution calendars, pre-market validation and next-day recovery guards.
 - Batched validated market data, measured polling cadence, reconnect reconciliation and exit-response deadlines.
+- Account-bound cost profiles, split-exit fee allowances, and audited reconciliation of fills, holdings, cash and net P&L.
 - Lifecycle/recovery tests and GitHub Actions checks.
 
 ## Status and boundaries
@@ -61,6 +62,10 @@ ends on 31 December 2026; unverified dates block new order actions.
 The [market-data guide](Phase2A_Execution/MARKET_DATA_AND_LATENCY.md) documents the
 60-second monitored exit-response deadline and synthetic timing acceptance;
 actual broker latency and account validation are still pending.
+The [costs and reconciliation guide](Phase2A_Execution/COSTS_AND_RECONCILIATION.md)
+documents the new live-entry cost-profile requirement and cumulative statement
+imports. Missing prior-day financial evidence or discrepancies block new entries
+while exits continue. Real account tariff/contract-note validation remains pending.
 Protection starts after the entry is terminal and the GTT
 has been registered and verified; the fill-to-registration window is unprotected.
 GTTs are broker-held triggers that submit limit orders, not guaranteed exits:

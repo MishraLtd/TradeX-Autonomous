@@ -21,6 +21,7 @@ from execution.polling import Cadence, PollMonitor, operational_alerts
 from execution.sessions import SessionClient, save_session
 from execution.store import Store
 from execution.supervision import health_snapshot
+from finance_fixtures import profile as cost_profile
 
 
 class Clock:
@@ -272,6 +273,7 @@ class AdapterTests(Base):
 class RecoveryTests(Base):
     def setUp(self):
         super().setUp()
+        self.cfg = replace(self.cfg, cost_profile=cost_profile(self.root)[0])
         self.client = sdk(self.clock)
         self.path = self.root / "live.kite-session.json"
         save_session(self.path, dict(user_id="TEST", api_key="key", access_token="token", login_time=self.clock.date()),

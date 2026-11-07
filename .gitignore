@@ -11,3 +11,6 @@ config.live.json
 *.kite-evidence.json
 *.kite-session.json
 .kite-session-*
+*.financial-evidence.json
+*.financial-report.json
+*.cost-profile.json

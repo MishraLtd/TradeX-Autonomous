@@ -19,6 +19,7 @@ class Store:
             CREATE TABLE IF NOT EXISTS trades(id TEXT PRIMARY KEY, data TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY, at REAL, trade_id TEXT, kind TEXT, data TEXT);
+            CREATE TABLE IF NOT EXISTS financial_reports(id TEXT PRIMARY KEY, at REAL NOT NULL, data TEXT NOT NULL);
         """)
 
     @contextmanager
