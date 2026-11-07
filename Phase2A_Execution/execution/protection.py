@@ -88,12 +88,18 @@ class ProtectionManager:
             # child from order timestamps, tags or symbol matching alone.
             child = self.broker.order(order_id)
             child.check()
+            if child.placed_at is not None and child.placed_at > self.clock() + 2:
+                raise RuntimeError("Broker GTT child placement is in the future")
             if (child.stock, child.side, child.quantity) != (trade["stock"], "SELL", remote.spec.quantity):
                 raise RuntimeError("GTT child identity mismatch")
             record = asdict(child)
             record.update(protection_id=remote.id, submitted=self.clock())
             self.supervisor.prepare_order(trade, record)
             trade["orders"].append(record)
+            trade.setdefault("broker_exit_observations", {})[child.id] = dict(
+                observed_at=self.clock(), broker_submitted_at=child.placed_at,
+                discovery_seconds=self.clock() - child.placed_at if child.placed_at is not None else None,
+                actual_trigger_at=None)  # Kite supplies an order time, not an exact price-crossing time
             self.store.save(trade, "GTT_CHILD_ADOPTED")
         # Once a child is known, the association must never disappear from the
         # authoritative trigger response. Fail closed on inconsistent snapshots.
@@ -102,6 +108,14 @@ class ProtectionManager:
             raise RuntimeError("Broker GTT child association disappeared")
         if remote.status == "triggered":
             trade["reason"] = trade["reason"] or remote.triggered_leg or "BROKER_TRIGGER"
+        watch = trade.get("broker_trigger_watch")
+        if watch and remote.child_ids and watch["child_seen_at"] is None:
+            child = next(o for o in trade["orders"] if o["id"] == remote.child_ids[0])
+            watch.update(child_seen_at=self.clock(), submitted_at=child.get("placed_at"))
+            watch["discovery_seconds"] = self.clock() - watch["observed_at"]
+            watch["source_to_submission"] = (child["placed_at"] - watch["source_at"]
+                                               if child.get("placed_at") is not None else None)
+            self.store.save(trade, "BROKER_EXIT_TIMING_OBSERVED")
         saved.update(status=remote.status, released=remote.released,
                      health="ACTIVE" if remote.status == "active" else "TRIGGERED" if remote.child_ids else "INACTIVE",
                      verified_at=self.clock(), child_ids=list(remote.child_ids))

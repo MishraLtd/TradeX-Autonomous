@@ -72,6 +72,11 @@ class Config:
     emergency_exit_policy: str = "BROKER_PROTECTED_MARKET"
     live_account_id: str | None = None
     market_calendar: str | None = None
+    poll_interval: float = 5
+    poll_cycle_budget: float = 20
+    broker_request_timeout: float = 5
+    reconnect_max_delay: float = 30
+    exit_response_timeout: float = 60
 
     def __post_init__(self):
         if self.market_calendar is not None and (not isinstance(self.market_calendar, str) or not self.market_calendar):
@@ -102,9 +107,15 @@ class Config:
             if type(value) is not int or value < 1:
                 raise ValueError("Counts must be positive integers")
         for value in (self.max_quote_age, self.entry_timeout, self.exit_timeout, self.cancel_timeout,
-                      self.submission_timeout, self.retry_interval, self.health_max_age):
+                      self.submission_timeout, self.retry_interval, self.health_max_age,
+                      self.poll_interval, self.poll_cycle_budget, self.broker_request_timeout,
+                      self.reconnect_max_delay, self.exit_response_timeout):
             if not math.isfinite(value) or value <= 0:
                 raise ValueError("Timeouts must be finite and positive")
+        if (self.poll_interval < 3 or self.reconnect_max_delay < self.poll_interval or
+                self.poll_cycle_budget < self.broker_request_timeout or
+                self.exit_response_timeout < 2 * self.poll_cycle_budget + self.poll_interval):
+            raise ValueError("Invalid polling/response budget: allow two cycle budgets plus one interval")
 
     @classmethod
     def load(cls, path):
@@ -137,12 +148,15 @@ class Order:
     status: str
     placed_at: float | None = None
     message: str | None = None
+    updated_at: float | None = None
 
     @property
     def terminal(self):
         return self.status in ("COMPLETE", "CANCELLED", "REJECTED")
 
     def check(self):
+        if self.updated_at is not None and (not math.isfinite(self.updated_at) or self.updated_at <= 0):
+            raise ValueError("Invalid broker order update timestamp")
         if self.placed_at is not None and (not math.isfinite(self.placed_at) or self.placed_at <= 0):
             raise ValueError("Invalid broker order timestamp")
         if self.quantity < 1 or not 0 <= self.filled <= self.quantity:

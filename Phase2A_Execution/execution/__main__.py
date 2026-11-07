@@ -1,17 +1,19 @@
 """Run with python -m execution; paper mode is the default."""
 import argparse
 import getpass
+from contextlib import nullcontext
 import json
-import math
 import os
 import sys
 import time
 from datetime import datetime, timezone
+from dataclasses import replace
 from .models import Config, dumps
 from .store import Store
 from .brokers import PaperBroker
 from .engine import Engine
 from .supervision import health_snapshot
+from .polling import Cadence, PollMonitor
 
 
 def login(args, cfg):
@@ -123,7 +125,7 @@ def main(argv=None):
     missing.add_argument("request_id")
     missing.add_argument("--confirmed-not-created", action="store_true")
     run = sub.add_parser("run", help="Poll orders and manage exits until interrupted")
-    run.add_argument("--interval", type=float, default=5)
+    run.add_argument("--interval", type=float, help="Override config poll_interval (seconds between cycle starts)")
     validate = sub.add_parser("validate-account", help="Collect read-only Kite account evidence, or replay a private capture")
     validate.add_argument("--expected-account")
     validate.add_argument("--order-id", action="append", default=[])
@@ -135,8 +137,8 @@ def main(argv=None):
     cfg = Config.load(args.config)
     if args.command in ("login-url", "login"):
         return login(args, cfg)
-    if args.command == "run" and (not math.isfinite(args.interval) or args.interval < 3):
-        raise ValueError("Polling interval must be finite and at least 3 seconds")
+    if args.command == "run" and args.interval is not None:
+        cfg = replace(cfg, poll_interval=args.interval)
     if args.command == "validate-account":
         return validate_account(args, cfg)  # no Engine/Store initialization or trading mutation
     store = Store(args.db)
@@ -145,7 +147,7 @@ def main(argv=None):
     try:
         # Read-only status/health/journal and pause work without broker credentials or connectivity.
         if args.command in ("status", "health", "journal", "pause"):
-            with store.locked():
+            with store.locked() if args.command == "pause" else nullcontext():
                 if args.command == "pause":
                     store.set("paused", True)
                 if args.command == "journal":
@@ -166,7 +168,7 @@ def main(argv=None):
             from kiteconnect import KiteConnect
             from .live import LiveRuntime
             runtime = LiveRuntime(cfg, store, os.environ.get("KITE_API_KEY"), args.session_file, KiteConnect)
-            engine = None if args.command == "run" else runtime.prepare()
+            engine = None if args.command in ("run", "tick") else runtime.prepare()
         else:
             broker = PaperBroker(args.paper_db, cash=cfg.capital_limit, fees=cfg.fees)
             engine = Engine(cfg, store, broker)
@@ -175,8 +177,9 @@ def main(argv=None):
         elif args.command == "entry":
             print(dumps(engine.request_entry(args.request_id, args.stock, args.budget)))
         elif args.command == "tick":
-            print(dumps(engine.tick()))
-            emit_alerts(engine.health(), set())
+            trades, health = runtime.tick() if runtime is not None else (engine.tick(), engine.health())
+            print(dumps(trades))
+            emit_alerts(health, set())
         elif args.command == "preflight":
             result = engine.preflight()
             print(dumps(result))
@@ -196,18 +199,27 @@ def main(argv=None):
             engine.resolve_protection_absent(args.request_id, confirmed_not_created=args.confirmed_not_created)
         elif args.command == "run":
             previous_alerts = set()
+            cadence = Cadence(cfg.poll_interval)
+            monitor = PollMonitor(cfg, store)
             while True:
+                cadence.begin()
                 try:
                     if runtime is not None:
                         trades, health = runtime.tick()
                     else:
-                        trades, health = engine.tick(), engine.health()
+                        with store.locked():
+                            monitor.begin()
+                        trades = engine.tick()
+                        with store.locked():
+                            monitor.finish(not any(t.get("error") for t in trades),
+                                           any(t["state"] not in ("CLOSED", "NO_FILL") for t in trades))
+                        health = engine.health()
                     print(dumps(dict(at=time.time(), trades=trades, health=health)), flush=True)
                     previous_alerts = emit_alerts(health, previous_alerts)
                 except Exception as exc:
                     # Keep the worker alive after transient connectivity/lock failures.
                     print(dumps(dict(event="worker_error", at=time.time(), error=str(exc))), file=sys.stderr, flush=True)
-                time.sleep(args.interval)
+                time.sleep(cadence.delay())
         return 0
     finally:
         store.close()

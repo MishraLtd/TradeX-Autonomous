@@ -27,6 +27,9 @@ jobs:
       - name: Sessions, exchange calendar and next-day recovery (synthetic data only)
         working-directory: Phase2A_Execution
         run: python -m unittest discover -s tests -p test_sessions.py -v
+      - name: Market data, polling recovery and exit-response budgets
+        working-directory: Phase2A_Execution
+        run: python -m unittest discover -s tests -p test_market_data.py -v
       - name: Paper round trips
         working-directory: Phase2A_Execution
         run: python demo.py

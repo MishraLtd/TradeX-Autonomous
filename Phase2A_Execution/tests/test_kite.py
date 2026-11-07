@@ -54,9 +54,9 @@ class KiteTests(unittest.TestCase):
 
     def test_quote_uses_actual_trade_time_not_receive_time(self):
         self.client.quote.return_value = {"NSE:DEMO": {"last_price": 100,
-            "timestamp": "2026-10-30 15:20:00", "last_trade_time": "2026-10-30 15:19:00"}}
+            "timestamp": "2026-11-02 10:30:00", "last_trade_time": "2026-11-02 10:29:59"}}
         quote = self.broker.quote("NSE:DEMO")
-        self.assertEqual(quote.timestamp, datetime(2026, 10, 30, 9, 49, tzinfo=timezone.utc).timestamp())
+        self.assertEqual(quote.timestamp, datetime(2026, 11, 2, 4, 59, 59, tzinfo=timezone.utc).timestamp())
         self.client.quote.return_value = {}
         with self.assertRaises(ValueError):
             self.broker.quote("NSE:DEMO")

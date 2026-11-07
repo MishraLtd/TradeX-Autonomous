@@ -45,6 +45,7 @@ deadline-based cancellation, confirmed residual sizing, and a replacement exit.
 - Read-only Kite account acceptance reports, explicit account binding and corrected delivery-inventory reconciliation.
 - Supported Kite login, private renewable session receipts, and expiry/revocation alerts.
 - Reviewed NSE/BSE execution calendars, pre-market validation and next-day recovery guards.
+- Batched validated market data, measured polling cadence, reconnect reconciliation and exit-response deadlines.
 - Lifecycle/recovery tests and GitHub Actions checks.
 
 ## Status and boundaries
@@ -57,6 +58,9 @@ provides a GET-only validation command; real-account evidence is still pending.
 The [session and market-hours guide](Phase2A_Execution/SESSIONS_AND_MARKETS.md)
 documents daily broker login and calendar maintenance. Bundled calendar coverage
 ends on 31 December 2026; unverified dates block new order actions.
+The [market-data guide](Phase2A_Execution/MARKET_DATA_AND_LATENCY.md) documents the
+60-second monitored exit-response deadline and synthetic timing acceptance;
+actual broker latency and account validation are still pending.
 Protection starts after the entry is terminal and the GTT
 has been registered and verified; the fill-to-registration window is unprotected.
 GTTs are broker-held triggers that submit limit orders, not guaranteed exits:

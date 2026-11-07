@@ -34,7 +34,8 @@ python -m execution journal
 Request IDs are permanent idempotency keys. Repeating an ID with identical inputs
 returns the existing trade; reusing it for different inputs fails.
 
-`python -m execution run` polls continuously (default 5 seconds between cycles).
+`python -m execution run` polls continuously (default 5 seconds between cycle
+starts, subtracting work time and skipping missed slots).
 Paper quotes must be supplied by a replay/feed or `quote`; the engine never
 fabricates or silently refreshes market prices. Quotes older than the configured
 age are rejected. Ctrl+C stops the worker, and a subsequent run recovers state.
@@ -68,6 +69,11 @@ schedule. Copy it to ignored `config.live.json` when configuring a real account.
 | `health_max_age` | Maximum heartbeat/reconciliation age for the read-only health check (default 30 seconds). |
 | `live_account_id` | Exact expected Kite user ID, required before new live entries. Leave null in paper mode. |
 | `market_calendar` | Optional reviewed calendar JSON path for live execution. Default is the bounded bundled NSE/BSE schedule; unknown dates block order actions. |
+| `poll_interval` | Intended seconds between polling starts (default 5, minimum 3). |
+| `poll_cycle_budget` | Maximum healthy cycle duration (default 20 seconds). Overruns alert, pause entries and rotate deferred work. |
+| `broker_request_timeout` | Live SDK HTTP timeout per request (default 5 seconds); not a total-cycle deadline. |
+| `reconnect_max_delay` | Maximum backoff without exposure (default 30 seconds); active exposure keeps the polling interval. |
+| `exit_response_timeout` | Submission-response deadline per sell or observed broker trigger (default 60 seconds). Must cover two cycle budgets plus one interval. |
 
 Money uses `Decimal`. Tick size, fees, target, stop, exit mode and stop-limit
 buffer are snapshotted per trade; restarting with new percentages does not move
@@ -230,6 +236,13 @@ pause remains in place until `resume`; that command refuses active errors or
 execution alerts. `HEALTHY` with `paused: true` means reconciliation is healthy
 but new buys remain deliberately disabled. Choose monitoring thresholds and a
 poll interval that accommodate the expected number of positions and API latency.
+
+Live polling batches and validates quotes, reconciles order updates from fresh
+snapshots, and requires a complete verified cycle after disconnection. The
+[market-data and latency guide](MARKET_DATA_AND_LATENCY.md) defines response
+deadlines, conditional timing bounds and the need for actual broker measurements.
+Read-only status/health/journal can inspect committed SQLite state while the
+execution lock is held, allowing an independent monitor to detect a stuck cycle.
 
 Session, calendar and preflight alerts also appear in health. These readiness
 gates block new entries without clearing an existing manual pause. Read the

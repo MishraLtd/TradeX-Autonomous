@@ -9,11 +9,13 @@ from .protection import ProtectionManager
 from .supervision import Supervisor, health_snapshot, policy, trade_alerts
 from .market import MarketCalendar, MarketClosed
 from .sessions import SessionUnavailable
+from .polling import exit_response, mark_exit_sent, operational_alerts
 
 
 class Engine:
-    def __init__(self, config, store, broker, clock=time.time, calendar=None):
+    def __init__(self, config, store, broker, clock=time.time, calendar=None, monotonic=time.monotonic):
         self.config, self.store, self.broker, self.clock = config, store, broker, clock
+        self.monotonic = monotonic
         self.calendar = calendar
         if getattr(broker, "requires_market_hours", False):
             self.calendar = calendar or (MarketCalendar.load(config.market_calendar) if config.market_calendar else broker.calendar)
@@ -131,6 +133,8 @@ class Engine:
                 return old
             if self.store.get("paused", False):
                 raise ValueError("New entries are paused; existing exits continue")
+            if operational_alerts(self.store, cfg, self.clock()):
+                raise ValueError("Restore fresh data and complete polling recovery before new entries")
             if stock not in cfg.stocks:
                 raise ValueError("Stock is outside the approved universe")
             if self.calendar is not None:
@@ -199,6 +203,7 @@ class Engine:
         if self.calendar is not None:
             self.calendar.require_open(trade["stock"], self.clock(), buffer=60 if side == "BUY" else 10)
         if side == "SELL":
+            exit_response(trade, self.config, self.clock(), can_act=True)
             if trade.get("protection") and not trade["protection"].get("released"):
                 raise RuntimeError("Broker protection still owns the exit; competing sell blocked")
             if any(o["side"] == "SELL" and o["status"] not in ("COMPLETE", "CANCELLED", "REJECTED")
@@ -212,13 +217,28 @@ class Engine:
         trade["orders"].append(record)
         # Persist intent BEFORE the network call. An ambiguous call is NEVER blindly retried.
         self.store.save(trade, "ORDER_INTENT")
+        def sent():
+            record["sent_at"] = self.clock()
+            if side == "SELL":
+                mark_exit_sent(trade, self.clock())
+            self.store.save(trade, "ORDER_DISPATCHED")
         try:
-            record["id"] = self.broker.submit(trade["stock"], side, quantity, tag, limit)
+            if getattr(self.broker, "supports_submission_timing", False):
+                record["id"] = self.broker.submit(trade["stock"], side, quantity, tag, limit, on_send=sent)
+            else:
+                sent()  # paper/custom adapters: measured at adapter invocation
+                record["id"] = self.broker.submit(trade["stock"], side, quantity, tag, limit)
             record["status"] = "OPEN"
+            record["acknowledged_at"] = self.clock()
+            if side == "SELL" and trade.get("exit_response"):
+                trade["exit_response"]["acknowledged_at"] = self.clock()
             self.store.save(trade, "ORDER_SUBMITTED")
         except MarketClosed:
             # The adapter's local guard rejected BEFORE sending any request.
             trade["orders"].remove(record)
+            if side == "SELL" and trade.get("exit_response"):
+                trade["exit_response"].update(sent_at=None, acknowledged_at=None,
+                                              elapsed_to_send=None, source_to_send=None)
             self.store.save(trade, "ORDER_DEFERRED_MARKET_CLOSED")
             raise
         except Exception as exc:
@@ -235,6 +255,15 @@ class Engine:
             if order is None:
                 raise RuntimeError("Unknown submission; reconcile tag " + record["tag"])
             order.check()
+            if record["id"] and record["id"] != order.id:
+                raise RuntimeError("Broker returned a different order ID")
+            if record.get("updated_at") is not None and order.updated_at is None:
+                raise RuntimeError("Broker order update timestamp disappeared")
+            if order.updated_at is not None:
+                if order.updated_at > self.clock() + 2:
+                    raise RuntimeError("Broker order update is in the future")
+                if record.get("updated_at") is not None and order.updated_at < record["updated_at"]:
+                    raise RuntimeError("Broker order update moved backwards")
             if (order.tag, order.stock, order.side, order.quantity) != (
                     record["tag"], record["stock"], record["side"], record["quantity"]):
                 raise RuntimeError("Broker order identity mismatch")
@@ -312,6 +341,7 @@ class Engine:
                 trade["reason"] = "INVALID_EXIT_LEVELS"
             self.store.save(trade, "EXITS_CALCULATED")
         exits = [o for o in trade["orders"] if o["side"] == "SELL"]
+        exit_response(trade, self.config, self.clock(), can_act=can_act)
         if any(o["status"] not in ("COMPLETE", "CANCELLED", "REJECTED") for o in exits):
             trade["state"] = "EXITING"
             if not can_act:
@@ -334,6 +364,12 @@ class Engine:
                 if trade["reason"]:
                     self.protection.cancel(trade)
                 else:
+                    if hasattr(self.broker, "cached_quote"):
+                        quote = self.broker.cached_quote(trade["stock"])
+                        if quote and (quote.price <= dec(trade["stop"]) or quote.price >= dec(trade["target"])):
+                            trade.setdefault("broker_trigger_watch", dict(observed_at=self.clock(),
+                                source_at=quote.timestamp, deadline=self.clock() + self.config.exit_response_timeout,
+                                child_seen_at=None, submitted_at=None))
                     self.broker.assert_inventory(trade["stock"], remaining, [o["id"] for o in trade["orders"]])
                     self.broker.assert_no_protection(trade["stock"], self.protection.owned_ids(trade["stock"]))
                     trade["state"] = "OPEN"
@@ -348,6 +384,7 @@ class Engine:
             if not trade["reason"]:
                 self.store.set("paused", True)
                 trade["reason"] = "PROTECTION_LOST"
+                exit_response(trade, self.config, self.clock(), can_act=True)
         if trade["reason"] and exits:
             if len(exits) >= rules["max_exit_attempts"] + trade.get("extra_attempts", 0):
                 raise RuntimeError("Exit attempts exhausted; reconcile broker rejection before retry-exit")
@@ -364,6 +401,9 @@ class Engine:
                 trade["reason"] = "STOP_LOSS"
             elif dec(quote.price) >= dec(trade["target"]):
                 trade["reason"] = "PROFIT_TARGET"
+            if trade["reason"]:
+                exit_response(trade, self.config, self.clock(), can_act=True, source_at=quote.timestamp)
+                self.store.save(trade, "EXIT_TRIGGER_OBSERVED")
         if self._broker_exits(trade) and not trade["reason"] and not trade.get("protection"):
             trade.setdefault("stop_limit_buffer_pct", self.config.stop_limit_buffer_pct)
             protected = self.protection.arm(trade, remaining, quote)
@@ -382,30 +422,51 @@ class Engine:
     def tick(self):
         """One polling cycle. A failed symbol never stops protection of other symbols."""
         with self.store.locked():
-            self._preflight()
-            for trade in self.store.all():
-                if trade["state"] in ("CLOSED", "NO_FILL"):
-                    continue
-                try:
-                    trade["error"] = None
-                    if not trade["orders"]:
-                        # Crash after saving request, before writing intent: definitely not submitted.
-                        trade.update(state="NO_FILL", reserved="0")
-                    else:
-                        self._progress(trade)
-                except MarketClosed:
-                    self._can_act(trade)  # session boundary crossed during network calls
-                    trade["error"] = None
-                except Exception as exc:
-                    trade["error"] = f"{type(exc).__name__}: {exc}"
-                    self.store.set("paused", True)
-                self.supervisor.observe(trade)
-                self.store.save(trade, "TICK")
+            started = self.monotonic()
+            self._preflight(force=self.store.get("polling", {}).get("recovery_required", False))
+            trades = [t for t in self.store.all() if t["state"] not in ("CLOSED", "NO_FILL")]
+            cursor = self.store.get("poll_cursor")
+            if cursor in [t["id"] for t in trades]:
+                index = next(i for i, t in enumerate(trades) if t["id"] == cursor)
+                trades = trades[index:] + trades[:index]
+            if hasattr(self.broker, "begin_poll"):
+                self.broker.begin_poll(trades)
+            self.store.set("poll_deferred", [])
+            try:
+                self._poll_trades(trades, started)
+            finally:
+                if hasattr(self.broker, "end_poll"):
+                    self.broker.end_poll()
             self.store.set("heartbeat", self.clock())
             return self.store.all()
 
+    def _poll_trades(self, trades, started):
+        for index, trade in enumerate(trades):
+            if index and self.monotonic() - started >= self.config.poll_cycle_budget:
+                self.store.set("poll_deferred", [t["id"] for t in trades[index:]])
+                self.store.set("poll_cursor", trade["id"])
+                return  # the next cycle starts with the first unprocessed trade
+            try:
+                trade["error"] = None
+                if not trade["orders"]:
+                    # Crash after saving request, before writing intent: definitely not submitted.
+                    trade.update(state="NO_FILL", reserved="0")
+                else:
+                    self._progress(trade)
+            except MarketClosed:
+                self._can_act(trade)  # session boundary crossed during network calls
+                trade["error"] = None
+            except Exception as exc:
+                trade["error"] = f"{type(exc).__name__}: {exc}"
+                self.store.set("paused", True)
+            self.supervisor.observe(trade)
+            self.store.save(trade, "TICK")
+        self.store.set("poll_cursor", trades[0]["id"] if trades else None)
+
     def pause(self, paused=True):
         with self.store.locked():
+            if not paused and operational_alerts(self.store, self.config, self.clock()):
+                raise ValueError("Complete data/polling recovery before resuming entries")
             if not paused and any(t.get("error") or trade_alerts(self.config, t, self.clock()) for t in self.store.all()
                                   if t["state"] not in ("CLOSED", "NO_FILL")):
                 raise ValueError("Resolve active errors and execution alerts before resuming")
@@ -422,6 +483,7 @@ class Engine:
             for trade in self.store.all():
                 if trade["state"] not in ("CLOSED", "NO_FILL") and (request_id is None or trade["id"] == request_id):
                     trade["reason"] = "OPERATOR_EXIT"
+                    exit_response(trade, self.config, self.clock(), can_act=self._can_act(trade))
                     self.store.save(trade, "EXIT_REQUESTED")
 
     def retry_exit(self, request_id):

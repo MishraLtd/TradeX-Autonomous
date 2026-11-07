@@ -307,7 +307,8 @@ class SessionTests(unittest.TestCase):
             self.sdk.instruments.return_value[0]["tick_size"] = .10
             _, health = runtime.tick()
             self.assertEqual(health["preflight"]["status"], "FAILED")
-            with self.assertRaisesRegex(ValueError, "preflight"):
+            self.assertTrue(self.store.get("paused"))
+            with self.assertRaisesRegex(ValueError, "paused"):
                 runtime.engine.request_entry("one", "NSE:DEMO", "1000")
         self.sdk.place_order.assert_not_called()
 

@@ -121,12 +121,21 @@ def read_session(path, api_key, expected_account, now, environ=None):
 
 class SessionClient:
     """SDK proxy re-reads atomic session receipts before every call, including POSTs."""
-    def __init__(self, factory, api_key, account, path, store, clock=time.time, environ=None):
+    def __init__(self, factory, api_key, account, path, store, clock=time.time, environ=None, request_timeout=10):
         if not api_key or not account:
             raise ValueError("Set KITE_API_KEY and live_account_id before live operation")
         self.factory, self.api_key, self.account, self.path = factory, api_key, account, path
         self.store, self.clock, self.environ = store, clock, environ
         self.client, self.revision, self.last_verified = None, None, 0
+        self.request_timeout = request_timeout
+
+    def reconnect(self):
+        """Discard a broken HTTP transport; preserve token revocation and identity checks."""
+        if self.client is not None:
+            session = getattr(self.client, "reqsession", None)
+            if session is not None:
+                session.close()
+        self.client, self.last_verified = None, 0
 
     def _state(self, state, **extra):
         data = dict(state=state, account_id=self.account, checked_at=self.clock(), **extra)
@@ -149,8 +158,8 @@ class SessionClient:
             self._state("REVOKED")
             raise SessionUnavailable("SESSION_REVOKED: renew through the supported Kite login flow")
         changed = revision != self.revision
-        if changed:
-            self.client = self.factory(api_key=self.api_key, timeout=10)
+        if changed or self.client is None:
+            self.client = self.factory(api_key=self.api_key, timeout=self.request_timeout)
             self.client.set_access_token(receipt["access_token"])
             self.revision, self.last_verified = revision, 0
         if changed or not self.last_verified or now - self.last_verified >= 60 or now < self.last_verified:
@@ -180,9 +189,14 @@ class SessionClient:
         if name.startswith("_"):
             raise AttributeError(name)
         def call(*args, **kwargs):
-            client = self.ensure()
-            try:
-                return getattr(client, name)(*args, **kwargs)
-            except Exception as exc:
-                self._failure(exc)
+            return self.request(name, *args, **kwargs)
         return call
+
+    def request(self, name, *args, before_send=None, **kwargs):
+        client = self.ensure()
+        if before_send is not None:
+            before_send()  # after session renewal/validation, immediately before SDK dispatch
+        try:
+            return getattr(client, name)(*args, **kwargs)
+        except Exception as exc:
+            self._failure(exc)
