@@ -1,0 +1,8 @@
+[Unit]
+Description=Publish independent TradeX health every minute
+[Timer]
+OnBootSec=60
+OnUnitActiveSec=60
+Unit=tradex-maintain@health.service
+[Install]
+WantedBy=timers.target

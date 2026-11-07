@@ -269,6 +269,7 @@ def _reconcile(e, trades, account, cfg, directory, now, report, issue):
         cashflow += sell_value - buy_value
         inventory[t["stock"]] += buy_qty - sell_qty
         report["trades"][t["id"]] = dict(bought=buy_qty, sold=sell_qty, remaining=buy_qty - sell_qty,
+            last_fill_at=max((row['at'] for o in buys + sells for row in fills[o['id']]), default=None),
             realized_gross=str(trade_gross), allocated_actual_costs=str(costs),
             actual_net_pnl=str(trade_gross - costs) if buy_qty == sell_qty else None,
             allocation_basis="GROUP_TURNOVER_LARGEST_REMAINDER")

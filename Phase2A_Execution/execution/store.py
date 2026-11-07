@@ -37,6 +37,14 @@ class Store:
     def all(self):
         return [json.loads(row[0]) for row in self.db.execute("SELECT data FROM trades ORDER BY rowid")]
 
+    def acquire_worker(self):
+        self.worker_handle = open(str(self.path) + '.worker.lock', 'a')
+        try:
+            fcntl.flock(self.worker_handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            self.worker_handle.close()
+            raise RuntimeError('Another continuous worker owns this account database') from None
+
     def save(self, trade, kind):
         with self.db:
             self.db.execute("INSERT OR REPLACE INTO trades VALUES (?,?)", (trade["id"], dumps(trade)))
@@ -52,4 +60,6 @@ class Store:
             self.db.execute("INSERT OR REPLACE INTO settings VALUES (?,?)", (key, dumps(value)))
 
     def close(self):
+        if hasattr(self, 'worker_handle'):
+            self.worker_handle.close()
         self.db.close()

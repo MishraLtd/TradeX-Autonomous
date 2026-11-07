@@ -12,6 +12,7 @@ from .sessions import SessionUnavailable
 from .polling import exit_response, mark_exit_sent, operational_alerts
 from .costs import affordable_quantity, load_plan, trade_fees
 from .finance import financial_alerts
+from . import risk
 
 
 class Engine:
@@ -133,6 +134,9 @@ class Engine:
                 if old["stock"] != stock or dec(old["budget"]) != budget:
                     raise ValueError("Request id already used with different inputs")
                 return old
+            self._risk_check()
+            if risk.alerts(self.store, cfg, self.clock()):
+                raise ValueError("Account daily loss controls block new entries")
             if self.store.get("paused", False):
                 raise ValueError("New entries are paused; existing exits continue")
             if operational_alerts(self.store, cfg, self.clock()):
@@ -338,6 +342,7 @@ class Engine:
             fees = trade_fees(trade)
             charges = sum((fees.cost(o["side"], dec(o["average"]) * o["filled"])
                            for o in trade["orders"] if o["filled"]), Decimal(0))
+            trade.setdefault("closed_at", self.clock())
             trade.update(state="CLOSED", reserved="0", gross_pnl=str(gross),
                          estimated_fees=str(charges), estimated_net_pnl=str(gross-charges))
             return
@@ -447,7 +452,30 @@ class Engine:
                 if hasattr(self.broker, "end_poll"):
                     self.broker.end_poll()
             self.store.set("heartbeat", self.clock())
+            self._risk_check()
             return self.store.all()
+
+    def _risk_check(self):
+        if self.config.daily_loss_limit is None:
+            return
+        def quote(stock):
+            if hasattr(self.broker, 'cached_quote'):
+                value = self.broker.cached_quote(stock)
+                if value is None:
+                    raise ValueError('No fresh cached quote')
+                return value
+            return self.broker.quote(stock)
+        state = risk.assess(self.config, self.store.all(), quote, self.clock())
+        previous = self.store.get('daily_risk', {})
+        state['breached'] = state['breached'] or (previous.get('day') == state['day'] and previous.get('breached', False))
+        self.store.set('daily_risk', state)
+        if state['breached']:
+            self.store.set('paused', True)
+            if self.config.daily_loss_action == 'FLATTEN':
+                for trade in self.store.all():
+                    if trade['state'] not in ('CLOSED', 'NO_FILL') and not trade.get('reason'):
+                        trade['reason'] = 'DAILY_LOSS_LIMIT'
+                        self.store.save(trade, 'DAILY_LOSS_EXIT_REQUESTED')
 
     def _poll_trades(self, trades, started):
         for index, trade in enumerate(trades):
@@ -474,6 +502,10 @@ class Engine:
 
     def pause(self, paused=True):
         with self.store.locked():
+            if not paused:
+                self._risk_check()
+                if risk.alerts(self.store, self.config, self.clock()):
+                    raise ValueError("Daily loss controls block resume")
             if not paused and operational_alerts(self.store, self.config, self.clock()):
                 raise ValueError("Complete data/polling recovery before resuming entries")
             if not paused and financial_alerts(self.store, self.config, self.clock()):

@@ -16,6 +16,10 @@ class LiveRuntime:
         self.client = SessionClient(factory, api_key, config.live_account_id, session_file, store, clock, environ,
                                     request_timeout=config.broker_request_timeout)
         self.monitor = PollMonitor(config, store, clock, monotonic)
+        if config.cloud_lease_file:
+            from .operations import dispatch_guard
+            self.client.dispatch_guard = lambda: dispatch_guard(config.cloud_lease_file, config.live_account_id,
+                                                                config.broker_request_timeout, self.clock())
         self.monotonic = monotonic
         self.engine = None
 

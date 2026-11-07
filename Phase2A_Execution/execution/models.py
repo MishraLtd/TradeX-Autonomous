@@ -78,8 +78,17 @@ class Config:
     reconnect_max_delay: float = 30
     exit_response_timeout: float = 60
     cost_profile: str | None = None
+    daily_loss_limit: str | None = None
+    daily_loss_action: str = "FLATTEN"
+    cloud_lease_file: str | None = None
 
     def __post_init__(self):
+        if self.daily_loss_limit is not None:
+            positive(self.daily_loss_limit)
+        if self.daily_loss_action not in ("PAUSE", "FLATTEN"):
+            raise ValueError("Invalid daily loss action")
+        if self.cloud_lease_file is not None and (not isinstance(self.cloud_lease_file, str) or not self.cloud_lease_file or self.daily_loss_limit is None):
+            raise ValueError("Cloud mode requires a lease receipt path and daily loss limit")
         if self.cost_profile is not None and (not isinstance(self.cost_profile, str) or not self.cost_profile):
             raise ValueError("cost_profile must be an account cost profile JSON path")
         if self.market_calendar is not None and (not isinstance(self.market_calendar, str) or not self.market_calendar):

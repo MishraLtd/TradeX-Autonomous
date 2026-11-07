@@ -47,6 +47,7 @@ deadline-based cancellation, confirmed residual sizing, and a replacement exit.
 - Reviewed NSE/BSE execution calendars, pre-market validation and next-day recovery guards.
 - Batched validated market data, measured polling cadence, reconnect reconciliation and exit-response deadlines.
 - Account-bound cost profiles, split-exit fee allowances, and audited reconciliation of fills, holdings, cash and net P&L.
+- Azure deployment templates, supervised worker, account lease checks, consistent backup/paused restore and conservative daily-loss controls.
 - Lifecycle/recovery tests and GitHub Actions checks.
 
 ## Status and boundaries
@@ -66,6 +67,9 @@ The [costs and reconciliation guide](Phase2A_Execution/COSTS_AND_RECONCILIATION.
 documents the new live-entry cost-profile requirement and cumulative statement
 imports. Missing prior-day financial evidence or discrepancies block new entries
 while exits continue. Real account tariff/contract-note validation remains pending.
+The [cloud deployment guide](deploy/README.md) and [VM comparison](deploy/VM_CHOICES.md)
+cover Azure student credit, secure installation, external monitoring and recovery.
+Cloud resources have not yet been deployed or accepted in a real subscription.
 Protection starts after the entry is terminal and the GTT
 has been registered and verified; the fill-to-registration window is unprotected.
 GTTs are broker-held triggers that submit limit orders, not guaranteed exits:

@@ -151,6 +151,8 @@ def main(argv=None):
     broker = None
     runtime = None
     try:
+        if args.command == 'run':
+            store.acquire_worker()
         if args.command in ("finance-template", "reconcile-finances"):
             from pathlib import Path
             from .acceptance import save_private

@@ -1,0 +1,31 @@
+[Unit]
+Description=TradeX single cloud execution worker
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=tradex
+Group=tradex
+WorkingDirectory=/opt/tradex/current/Phase2A_Execution
+EnvironmentFile=/etc/tradex/worker.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/tradex/current/venv/bin/python /opt/tradex/current/deploy/worker.py
+Restart=always
+RestartSec=30
+TimeoutStopSec=25
+KillMode=control-group
+UMask=0077
+RuntimeDirectory=tradex
+StateDirectory=tradex
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/tradex /run/tradex
+MemoryMax=650M
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target

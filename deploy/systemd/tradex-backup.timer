@@ -1,0 +1,8 @@
+[Unit]
+Description=Nightly TradeX backup
+[Timer]
+OnCalendar=*-*-* 20:30:00 UTC
+Persistent=true
+Unit=tradex-maintain@backup.service
+[Install]
+WantedBy=timers.target

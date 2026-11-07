@@ -7,6 +7,7 @@ from datetime import datetime
 from .market import IST, MarketCalendar
 from .polling import operational_alerts
 from .finance import financial_alerts
+from .risk import alerts as risk_alerts
 
 TERMINAL = ("COMPLETE", "CANCELLED", "REJECTED")
 POLICY_FIELDS = ("entry_timeout", "exit_timeout", "cancel_timeout", "submission_timeout",
@@ -166,7 +167,7 @@ def health_snapshot(store, config, now):
     heartbeat = store.get("heartbeat")
     fresh = heartbeat is not None and 0 <= now - heartbeat <= config.health_max_age
     alerts = ([a for t in trades for a in trade_alerts(config, t, now)] + operational_alerts(store, config, now)
-              + financial_alerts(store, config, now))
+              + financial_alerts(store, config, now) + risk_alerts(store, config, now))
     def operational(code, severity, message, action):
         alerts.append(dict(code=code, severity=severity, trade_id=None, ref="runtime", deadline=None,
                            message=message, action=action))
@@ -214,4 +215,5 @@ def health_snapshot(store, config, now):
                 session=session, market=market, preflight=preflight,
                 polling=store.get("polling"), market_data=store.get("market_data", {}),
                 financial_reconciliation=store.get("financial_reconciliation"),
+                daily_risk=store.get("daily_risk"),
                 active_trades=sum(t["state"] not in ("CLOSED", "NO_FILL") for t in trades))

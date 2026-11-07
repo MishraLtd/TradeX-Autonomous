@@ -1,0 +1,25 @@
+name: Cloud worker external health
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  health:
+    if: ${{ vars.AZURE_MONITOR_CLIENT_ID != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_MONITOR_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Read independent VM health publication
+        env:
+          STORAGE_ACCOUNT: ${{ vars.AZURE_OPERATIONS_STORAGE }}
+        run: az storage blob download --account-name "$STORAGE_ACCOUNT" --container-name operations --name health.json --file /tmp/health.json --auth-mode login --only-show-errors
+      - run: python deploy/check_remote_health.py /tmp/health.json

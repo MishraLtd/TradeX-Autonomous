@@ -1,0 +1,68 @@
+{
+  "checked_at": "2026-11-07T18:55:47.146589+00:00",
+  "region": "centralindia",
+  "source": "https://prices.azure.com/api/retail/prices",
+  "compute_only": true,
+  "quotes": [
+    {
+      "armSkuName": "Standard_B1s",
+      "retailPrice": 0.0112,
+      "currencyCode": "USD",
+      "productName": "Virtual Machines BS Series",
+      "meterName": "B1s",
+      "effectiveStartDate": "2025-10-01T00:00:00Z",
+      "meterId": "16a88a01-cdb6-4123-b983-bd35fabcf9f9",
+      "monthly_compute_730h": 8.18
+    },
+    {
+      "armSkuName": "Standard_D2s_v5",
+      "retailPrice": 0.101,
+      "currencyCode": "USD",
+      "productName": "Virtual Machines Dsv5 Series",
+      "meterName": "D2s v5",
+      "effectiveStartDate": "2021-11-01T00:00:00Z",
+      "meterId": "5affb6ce-43ec-53ba-b434-3a092f336ed4",
+      "monthly_compute_730h": 73.73
+    },
+    {
+      "armSkuName": "Standard_B2s_v2",
+      "retailPrice": 0.0896,
+      "currencyCode": "USD",
+      "productName": "Virtual Machines Bsv2 Series",
+      "meterName": "B2s v2",
+      "effectiveStartDate": "2023-09-01T00:00:00Z",
+      "meterId": "6748fe5d-eac8-59b7-a1d3-aaac5b05810c",
+      "monthly_compute_730h": 65.41
+    },
+    {
+      "armSkuName": "Standard_B2s",
+      "retailPrice": 0.0448,
+      "currencyCode": "USD",
+      "productName": "Virtual Machines BS Series",
+      "meterName": "B2s",
+      "effectiveStartDate": "2025-10-01T00:00:00Z",
+      "meterId": "734de0e1-404b-4c78-a340-a5f6498aca77",
+      "monthly_compute_730h": 32.7
+    },
+    {
+      "armSkuName": "Standard_B2ts_v2",
+      "retailPrice": 0.0112,
+      "currencyCode": "USD",
+      "productName": "Virtual Machines Bsv2 Series",
+      "meterName": "B2ts v2",
+      "effectiveStartDate": "2023-09-01T00:00:00Z",
+      "meterId": "ceb614c9-a82f-5717-ba18-174e0f34247b",
+      "monthly_compute_730h": 8.18
+    },
+    {
+      "armSkuName": "Standard_B2ls_v2",
+      "retailPrice": 0.0448,
+      "currencyCode": "USD",
+      "productName": "Virtual Machines Bsv2 Series",
+      "meterName": "B2ls v2",
+      "effectiveStartDate": "2023-09-01T00:00:00Z",
+      "meterId": "e97a8b71-4dfe-516d-9eaf-372c02b49833",
+      "monthly_compute_730h": 32.7
+    }
+  ]
+}

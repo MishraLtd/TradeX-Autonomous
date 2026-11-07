@@ -194,8 +194,13 @@ class SessionClient:
 
     def request(self, name, *args, before_send=None, **kwargs):
         client = self.ensure()
+        guard = self.__dict__.get('dispatch_guard')
+        if guard and name in ('place_order', 'modify_order', 'cancel_order', 'place_gtt', 'modify_gtt', 'delete_gtt'):
+            guard()
         if before_send is not None:
             before_send()  # after session renewal/validation, immediately before SDK dispatch
+        if guard and name in ('place_order', 'modify_order', 'cancel_order', 'place_gtt', 'modify_gtt', 'delete_gtt'):
+            guard()  # a durable dispatch callback can itself take time
         try:
             return getattr(client, name)(*args, **kwargs)
         except Exception as exc:

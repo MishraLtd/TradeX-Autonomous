@@ -38,6 +38,21 @@ jobs:
       - name: Paper round trips
         working-directory: Phase2A_Execution
         run: python demo.py
+      - name: Cloud SDK and operational recovery contracts
+        run: |
+          python -m pip install -r deploy/requirements-cloud.txt
+          cd Phase2A_Execution
+          python -m unittest discover -s tests -p test_operations.py -v
       - name: Stalled exit recovery
         working-directory: Phase2A_Execution
         run: python demo_recovery.py
+  cloud-templates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile Azure infrastructure without deploying
+        run: |
+          az bicep install --version v0.49.2
+          az bicep build --file deploy/azure/main.bicep --outfile /tmp/tradex.json
+          az bicep build --file deploy/azure/budget.bicep --outfile /tmp/budget.json
+          bash -n deploy/bootstrap.sh deploy/azure/preflight.sh deploy/azure/deploy.sh
