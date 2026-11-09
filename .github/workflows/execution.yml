@@ -43,6 +43,9 @@ jobs:
           python -m pip install -r deploy/requirements-cloud.txt
           cd Phase2A_Execution
           python -m unittest discover -s tests -p test_operations.py -v
+      - name: Upstox read-only data and intraday paper replay (no credentials)
+        working-directory: Phase2A_Execution
+        run: python -m unittest discover -s tests -p 'test_paper_trial*.py' -v
       - name: Stalled exit recovery
         working-directory: Phase2A_Execution
         run: python demo_recovery.py
@@ -55,4 +58,4 @@ jobs:
           az bicep install --version v0.49.2
           az bicep build --file deploy/azure/main.bicep --outfile /tmp/tradex.json
           az bicep build --file deploy/azure/budget.bicep --outfile /tmp/budget.json
-          bash -n deploy/bootstrap.sh deploy/azure/preflight.sh deploy/azure/deploy.sh
+          bash -n deploy/bootstrap.sh deploy/azure/preflight.sh deploy/azure/deploy.sh deploy/azure/start-upstox-paper.sh deploy/azure/store-upstox-token.sh

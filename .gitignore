@@ -14,3 +14,5 @@ config.live.json
 *.financial-evidence.json
 *.financial-report.json
 *.cost-profile.json
+*.analytics-token
+config.upstox-private.json

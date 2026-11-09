@@ -13,6 +13,11 @@ from execution.store import Store
 from execution.supervision import health_snapshot
 from execution.operations import backup, blob_client
 
+if os.environ.get('TRADEX_MODE') == 'upstox-paper':
+    from paper_maintenance import maintain
+    maintain(sys.argv[1])
+    sys.exit(0)
+
 cfg = Config.load(os.environ.get('TRADEX_CONFIG', '/var/lib/tradex/config.json'))
 base = os.environ['TRADEX_OPERATIONS_URL'].rstrip('/')
 state = Path('/var/lib/tradex')

@@ -3,13 +3,15 @@
 The package runs TradeX on one persistent Azure VM without a running Mac. It
 includes Azure infrastructure, a managed-identity worker, systemd restart,
 independent health publishing, external monitoring, consistent backups, guarded
-restore and a conservative daily-loss budget. The buy trigger remains deferred.
+restore and a conservative daily-loss budget. Manual/API entries are available
+for the CNC engine. The new [Upstox intraday paper trial](UPSTOX_PAPER.md) uses
+fixed entry times, long and short simulated positions, and real market data.
 
-**Status:** code and local/synthetic recovery tests are implemented. Azure quota,
-credit, infrastructure deployment, live identity/lease behavior, notifications,
-VM reboots and broker/account acceptance still need validation in your actual
-subscription. No Azure resources or live orders have been created here. Priority
-8 remains end-to-end acceptance; this guide does not declare the product certified.
+**Status:** the operator reported successful Azure DEMO paper entry/exit, worker
+health, private API and maintenance runs on 9 November 2026. New Upstox trial
+deployment and live-feed acceptance remain pending. Delivered notifications,
+actual restore drills and broker/account acceptance need their own evidence;
+the cloud setup and synthetic tests do not certify live-money trading.
 
 Read [VM choices and measured retail quotes](VM_CHOICES.md) first. Start with
 paper mode. Live activation remains a separate decision after account acceptance.

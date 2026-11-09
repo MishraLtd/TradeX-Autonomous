@@ -3,6 +3,8 @@
 set -euo pipefail
 [[ $EUID -eq 0 ]] || { echo 'Run with sudo'; exit 1; }
 release=${1:?Supply an immutable release ID, preferably the Git commit SHA}
+stage_only=${2:-}
+[[ -z $stage_only || $stage_only == --stage-only ]] || { echo 'Unknown bootstrap option'; exit 1; }
 [[ $release =~ ^[A-Za-z0-9._-]+$ ]] || exit 1
 root=$(cd "$(dirname "$0")/.." && pwd)
 apt-get update
@@ -17,6 +19,10 @@ tar -C "$root" --exclude=state --exclude=.env --exclude='config.live.json' --exc
 python3 -m venv "/opt/tradex/releases/$release/venv"
 "/opt/tradex/releases/$release/venv/bin/pip" install -r "/opt/tradex/releases/$release/deploy/requirements-cloud.txt"
 chown -R root:root "/opt/tradex/releases/$release"
+if [[ $stage_only == --stage-only ]]; then
+  echo 'Candidate release staged. Current worker and release are unchanged.'
+  exit 0
+fi
 if systemctl cat tradex.service >/dev/null 2>&1; then
   systemctl stop tradex.service
 fi

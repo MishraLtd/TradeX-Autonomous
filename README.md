@@ -1,9 +1,14 @@
 # TradeX Autonomous
 
-Current focus: **execute and manage long-only trades inside an approved stock list**.
-An operator decides *when to buy* through the controlled manual/API trigger.
+Current focus: **five-session intraday paper trading on real Upstox data**,
+with ₹4,000 virtual cash, a ₹2,000 entry cap, at most three positions, fixed
+scheduled long/short entries, automatic targets/stops and end-of-day exits.
+See the [Upstox paper setup and VM runbook](deploy/UPSTOX_PAPER.md). The trial
+uses a read-only Analytics Token and cannot place broker orders. It has its
+own frozen config and ledger; live-data/VM acceptance is still pending.
 
-The runnable engine is in [`Phase2A_Execution`](Phase2A_Execution/README.md). Once it
+The existing manual/API **long-only CNC** engine is also in
+[`Phase2A_Execution`](Phase2A_Execution/README.md). Once it
 receives an entry request, it derives a bounded entry price from a fresh quote,
 sizes whole shares within the budget, waits for actual fills, calculates a net
 profit target and a price-based stop loss, and sells the filled quantity when an
@@ -69,7 +74,8 @@ imports. Missing prior-day financial evidence or discrepancies block new entries
 while exits continue. Real account tariff/contract-note validation remains pending.
 The [cloud deployment guide](deploy/README.md) and [VM comparison](deploy/VM_CHOICES.md)
 cover Azure student credit, secure installation, external monitoring and recovery.
-Cloud resources have not yet been deployed or accepted in a real subscription.
+The operator has reported a successful Azure DEMO paper deployment. Upstox
+real-data trial acceptance, restore drills and delivered notifications remain pending.
 Protection starts after the entry is terminal and the GTT
 has been registered and verified; the fill-to-registration window is unprotected.
 GTTs are broker-held triggers that submit limit orders, not guaranteed exits:

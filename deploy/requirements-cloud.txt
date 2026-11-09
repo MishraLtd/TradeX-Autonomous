@@ -1,4 +1,5 @@
 -r ../Phase2A_Execution/requirements-live.txt
+-r ../Phase2A_Execution/requirements-upstox-paper.txt
 azure-identity==1.25.1
 azure-storage-blob==12.27.1
 azure-keyvault-secrets==4.10.0

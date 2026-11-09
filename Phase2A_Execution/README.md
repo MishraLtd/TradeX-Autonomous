@@ -1,5 +1,11 @@
 # TradeX execution engine
 
+For the current ₹4,000 intraday experiment with real Upstox quotes, fixed
+long/short entry times and entirely local simulated orders, use
+[`execution.paper_trial` and its Azure runbook](../deploy/UPSTOX_PAPER.md).
+That mode has an independent account and no live-order path. The CNC workflow
+documented below remains separate; do not use `--live` for the Upstox trial.
+
 This module owns everything from an explicit **entry request** to a confirmed
 exit. An operator supplies the buy decision through the controlled CLI/API.
 See [controlled entry](CONTROLLED_ENTRY.md) for authentication and remote access.

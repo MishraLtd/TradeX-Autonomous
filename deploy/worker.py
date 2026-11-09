@@ -9,6 +9,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'Phase2A_Execution'
 from execution.operations import run_fenced
 
 mode = os.environ.get('TRADEX_MODE', 'paper')
+if mode == 'upstox-paper':
+    # Exclusive fixed-schedule trial; never reaches the live/Kite branch below.
+    os.environ['TRADEX_TRIAL_LEASE_RECEIPT'] = '/run/tradex/lease.json'
+    os.environ['TRADEX_TRIAL_RELEASE'] = Path(__file__).resolve().parents[1].name
+    command = [sys.executable, '-m', 'execution.paper_trial',
+               '--config', os.environ.get('TRADEX_TRIAL_CONFIG', '/var/lib/tradex/upstox-trial/config.json'),
+               '--db', os.environ.get('TRADEX_TRIAL_DB', '/var/lib/tradex/upstox-trial/trial.sqlite'), 'run']
+    sys.exit(run_fenced(os.environ['TRADEX_LEASE_URL'], '/run/tradex/lease.json',
+                        os.environ['TRADEX_ACCOUNT_ID'], command))
 if mode not in ('paper', 'live'):
     raise ValueError('TRADEX_MODE must be paper or live')
 config = os.environ.get('TRADEX_CONFIG', '/var/lib/tradex/config.json')
