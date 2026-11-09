@@ -1,7 +1,9 @@
 # TradeX execution engine
 
 This module owns everything from an explicit **entry request** to a confirmed
-exit. The buy signal is an external input, left for later. Scope is one account,
+exit. An operator supplies the buy decision through the controlled CLI/API.
+See [controlled entry](CONTROLLED_ENTRY.md) for authentication and remote access.
+Scope is one account,
 fully funded long-only CNC equity trades on NSE/BSE, whole shares, and a fixed
 approved universe. It runs independently of the prediction and portfolio models.
 
@@ -16,7 +18,9 @@ python -m unittest discover -s tests -v
 ```
 
 For persistent paper operation, each command uses the same configuration and
-`state/engine.sqlite` / `state/paper.sqlite` databases:
+`state/engine.sqlite` / `state/paper.sqlite` databases. First start
+`python -m execution run` in a separate terminal and leave it running; new CLI/API
+entries require its fresh heartbeat. Then use:
 
 ```bash
 python -m execution quote NSE:DEMO 100
@@ -30,7 +34,7 @@ python -m execution tick  # reconcile the broker's sell and close the trade
 python -m execution journal
 ```
 
-`entry` is an explicit operator/test request, not the future entry strategy.
+`entry` is an explicit operator request and returns `{replayed, trade}`.
 Request IDs are permanent idempotency keys. Repeating an ID with identical inputs
 returns the existing trade; reusing it for different inputs fails.
 

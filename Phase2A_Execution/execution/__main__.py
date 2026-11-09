@@ -108,6 +108,8 @@ def main(argv=None):
     enter.add_argument("request_id")
     enter.add_argument("stock")
     enter.add_argument("budget")
+    api = sub.add_parser("serve-api", help="Private authenticated entry API; requires a running exit worker")
+    api.add_argument("--port", type=int, default=8765)
     for name in ("tick", "status", "health", "pause", "resume", "journal", "preflight", "login-url", "login"):
         sub.add_parser(name)
     flatten = sub.add_parser("flatten", help="Pause entries and request all positions closed")
@@ -196,14 +198,19 @@ def main(argv=None):
             from kiteconnect import KiteConnect
             from .live import LiveRuntime
             runtime = LiveRuntime(cfg, store, os.environ.get("KITE_API_KEY"), args.session_file, KiteConnect)
-            engine = None if args.command in ("run", "tick") else runtime.prepare()
+            engine = None if args.command in ("run", "tick", "serve-api", "entry") else runtime.prepare()
         else:
             broker = PaperBroker(args.paper_db, cash=cfg.capital_limit, fees=cfg.fees)
             engine = Engine(cfg, store, broker)
-        if args.command == "quote":
+        if args.command == "serve-api":
+            from .api import EntryService, serve
+            serve(EntryService(cfg, store, runtime.prepare if runtime is not None else lambda: engine), args.port)
+        elif args.command == "quote":
             broker.set_quote(args.stock, args.price)
         elif args.command == "entry":
-            print(dumps(engine.request_entry(args.request_id, args.stock, args.budget)))
+            from .api import EntryService
+            service = EntryService(cfg, store, runtime.prepare if runtime is not None else lambda: engine)
+            print(dumps(service.submit(dict(request_id=args.request_id, stock=args.stock, budget=args.budget))))
         elif args.command == "tick":
             trades, health = runtime.tick() if runtime is not None else (engine.tick(), engine.health())
             print(dumps(trades))

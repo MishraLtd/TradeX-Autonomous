@@ -1,0 +1,29 @@
+[Unit]
+Description=TradeX private operator entry API
+After=network-online.target tradex.service
+Requires=tradex.service
+PartOf=tradex.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=tradex
+Group=tradex
+WorkingDirectory=/opt/tradex/current/Phase2A_Execution
+EnvironmentFile=/etc/tradex/worker.env
+EnvironmentFile=/etc/tradex/api.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/tradex/current/venv/bin/python /opt/tradex/current/deploy/entry_api.py
+Restart=on-failure
+RestartSec=10
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/tradex
+MemoryMax=250M
+TasksMax=32
+
+[Install]
+WantedBy=multi-user.target

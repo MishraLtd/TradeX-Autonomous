@@ -1,7 +1,7 @@
 # TradeX Autonomous
 
 Current focus: **execute and manage long-only trades inside an approved stock list**.
-The rule deciding *when to buy* remains a separate, deliberately unfinished input.
+An operator decides *when to buy* through the controlled manual/API trigger.
 
 The runnable engine is in [`Phase2A_Execution`](Phase2A_Execution/README.md). Once it
 receives an entry request, it derives a bounded entry price from a fresh quote,
@@ -80,7 +80,7 @@ restrictions can still require intervention; the health command exposes those
 conditions. Recovery still needs a running worker. See the
 [operating guide](Phase2A_Execution/README.md) before using the live adapter.
 
-The entry trigger is connected later through:
+Trusted Python integrations can also call the underlying engine interface:
 
 ```python
 engine.request_entry(request_id="unique-stable-id", stock="NSE:YOUR_SYMBOL", budget="1000")
@@ -90,3 +90,10 @@ No prediction/training pipeline is required for this execution-only workflow.
 The existing Phase 2 models, cost/P&L library and Phase 3 portfolio components
 remain available as separate research/integration components. Their previous
 status is recorded in [the extraction README](docs/EXTRACTION_README.md).
+
+## Controlled entry
+
+The engine supports operator-triggered buys through the manual CLI and a private,
+authenticated HTTP API restricted to the configured stock universe. See the
+[controlled entry guide](Phase2A_Execution/CONTROLLED_ENTRY.md) for setup, replay
+semantics, worker requirements and Azure service instructions.
