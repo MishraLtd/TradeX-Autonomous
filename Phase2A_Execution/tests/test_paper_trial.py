@@ -276,6 +276,28 @@ class TransportTest(unittest.TestCase):
         self.assertEqual(opener.calls[0].method, 'GET')
         self.assertEqual(opener.calls[0].full_url, 'https://api.upstox.com/v2/market/timings/' + DATES[0])
 
+    def test_requests_transport_keeps_redirects_and_errors_private(self):
+        try:
+            import requests
+        except ImportError:
+            self.skipTest('Install paper transport dependencies')
+        from unittest.mock import MagicMock
+        client = DataClient('private-test-token-value')
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.status_code = 200
+        response.raw.read.return_value = b'{"status":"success","data":[]}'
+        with patch.object(requests, 'get', return_value=response) as get:
+            self.assertIsNone(client.timings(DATES[0]))
+            self.assertFalse(get.call_args.kwargs['allow_redirects'])
+            self.assertTrue(get.call_args.kwargs['stream'])
+            response.status_code = 302
+            with self.assertRaisesRegex(DataError, 'HTTP_REDIRECT_REFUSED'):
+                client.timings(DATES[0])
+            response.status_code = 401
+            with self.assertRaisesRegex(DataError, 'UPSTOX_HTTP_401'):
+                client.timings(DATES[0])
+
     def test_signed_websocket_destination_validated(self):
         client = DataClient('private-test-token-value')
         for url in ('ws://ws.upstox.com/feed', 'wss://upstox.com.evil.example/feed',

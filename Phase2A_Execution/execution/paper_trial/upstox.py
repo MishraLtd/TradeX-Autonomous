@@ -37,7 +37,7 @@ class DataClient:
         if not isinstance(token, str) or not 20 <= len(token) <= 8192 or any(c.isspace() for c in token):
             raise DataError('ANALYTICS_TOKEN_REQUIRED')
         self._token = token
-        self._opener = opener or build_opener(NoRedirect())
+        self._opener = opener  # Optional deterministic transport for offline tests.
 
     def _get(self, path):
         # Checked before attaching a credential or performing I/O.
@@ -47,8 +47,22 @@ class DataClient:
         request = Request(API + path, method='GET', headers={
             'Authorization': 'Bearer ' + self._token, 'Accept': 'application/json'})
         try:
-            with self._opener.open(request, timeout=5) as response:
-                raw = response.read(2_000_001)
+            if self._opener is not None:
+                with self._opener.open(request, timeout=5) as response:
+                    raw = response.read(2_000_001)
+            else:
+                # The VM diagnostic succeeds with requests while urllib receives
+                # HTTP 403. Keep its standard client headers and TLS verification.
+                import requests
+                with requests.get(API + path, headers={
+                        'Authorization': 'Bearer ' + self._token,
+                        'Accept': 'application/json'}, timeout=5,
+                        allow_redirects=False, stream=True) as response:
+                    if 300 <= response.status_code < 400:
+                        raise DataError('HTTP_REDIRECT_REFUSED')
+                    if response.status_code != 200:
+                        raise DataError('UPSTOX_HTTP_' + str(response.status_code))
+                    raw = response.raw.read(2_000_001, decode_content=True)
             if len(raw) > 2_000_000:
                 raise DataError('DATA_RESPONSE_TOO_LARGE')
             body = json.loads(raw)

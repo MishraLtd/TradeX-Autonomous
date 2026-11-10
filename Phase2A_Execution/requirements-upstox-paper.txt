@@ -1,3 +1,4 @@
 # Data transport only; intentionally no Upstox trading SDK.
 websocket-client==1.9.0
 protobuf==6.33.6
+requests==2.34.2
