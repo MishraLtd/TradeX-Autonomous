@@ -68,6 +68,8 @@ done
 chown root:tradex "$config"
 chmod 640 "$config"
 ln -sfn "$candidate" /opt/tradex/current
+install -m 644 "$candidate"/deploy/systemd/* /etc/systemd/system/
+systemctl daemon-reload
 activation=$("$python" -c 'import time; print(time.time())')
 systemctl start tradex.service
 ready=0

@@ -1,8 +1,9 @@
 [Unit]
-Description=Nightly TradeX backup
+Description=TradeX pre-shutdown weekday backup
 [Timer]
-OnCalendar=*-*-* 20:30:00 UTC
+OnCalendar=Mon..Fri *-*-* 11:00:00 UTC
 Persistent=true
+RandomizedDelaySec=0
 Unit=tradex-maintain@backup.service
 [Install]
 WantedBy=timers.target

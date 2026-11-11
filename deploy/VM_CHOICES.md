@@ -50,7 +50,7 @@ market liquidity, exchange circuits or broker latency.
 | Runtime | Python virtual environment per immutable release; one execution process, systemd automatic restart. |
 | Networking | Static Standard public IPv4, SSH public-key authentication from one public administrator /32; no public trading API or database port. |
 | Secrets | Managed identity + Key Vault; session file mode 0600, service account and restrictive systemd permissions. |
-| Backup | Consistent SQLite online backup nightly, private LRS Blob Storage, 30-day cloud / 7-day local retention. |
+| Backup | Consistent SQLite online backup at 16:30 IST on weekdays, private LRS Blob Storage, 30-day cloud / 7-day local retention. |
 | Monitoring | Independent one-minute health publisher and external GitHub Actions checks; failure notifications must be enabled and tested. |
 | CPU/RAM budget | No ML training, builds, graphical desktop or large dashboard on the execution VM. Default service memory ceiling 650 MiB; raise it on a larger VM based on measurement. |
 | Availability | One VM, no automatic multi-host failover. Reboot/recovery supported; not high availability. |

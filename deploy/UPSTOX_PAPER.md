@@ -157,6 +157,9 @@ and reported, not replaced with a better-looking sixth session. Use GitHub's
 **Cloud worker external health** workflow to verify its next scheduled run. The
 existing workflow consumes the same sanitized `health.json` and now detects
 stale feed, stalled exits, missing backups and worker failure for this mode.
+With the weekday VM power schedule installed, checks begin at 07:40 IST to allow
+for boot and end at 16:55 IST before planned 17:00 deallocation. The final
+consistent database backup runs at 16:30 IST.
 GitHub cron timing is best-effort; inbox/device delivery still needs an actual
 operator notification test. No message-delivery guarantee is made by the tests.
 

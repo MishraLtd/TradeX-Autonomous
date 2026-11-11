@@ -1,7 +1,11 @@
 name: Cloud worker external health
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    # VM schedule is 07:30-17:00 Asia/Kolkata, Monday-Friday. Start checks
+    # after a ten-minute boot allowance and stop before planned deallocation.
+    - cron: '10-55/5 2 * * 1-5'
+    - cron: '*/5 3-10 * * 1-5'
+    - cron: '0-25/5 11 * * 1-5'
   workflow_dispatch:
 permissions:
   contents: read

@@ -130,8 +130,10 @@ No long-lived Azure secret is stored in GitHub. Without the client-ID variable,
 the monitoring workflow is explicitly skipped and monitoring is **not active**.
 Enable failed Actions notifications for your account, run the workflow manually,
 and verify delivery to the intended operator. GitHub scheduled jobs can be delayed
-or disabled by platform policy; a nominal five-minute schedule is not a guaranteed
-alert SLA. For stricter production alerting, add a separately hosted monitor with
+or disabled by platform policy. With the optional VM power schedule, checks run
+every five minutes from 07:40 through 16:55 IST on weekdays; planned off-hours
+do not create false stale-health failures. This is not a guaranteed alert SLA.
+For stricter production alerting, add a separately hosted monitor with
 an agreed SLA before live activation. Missing/stale health, unhealthy worker,
 authentication failure or subscription unavailability makes the job fail.
 
@@ -148,16 +150,68 @@ that cloud notifications have been configured.
 
 ## 4. Backups and recovery
 
-The nightly timer runs at 20:30 UTC (02:00 IST), using SQLite's online backup API;
+The weekday timer runs at 11:00 UTC (16:30 IST), before the optional 17:00 IST
+VM deallocation, using SQLite's online backup API;
 it captures committed WAL state consistently without copying live WAL files.
 Each backup has an account ID, SHA-256 and integrity check. Both DB and manifest
 are uploaded create-only, along with parsed configuration/cost-profile snapshots.
 Session tokens and API secrets are excluded. Local files are private, retained
 seven days; Azure lifecycle retains backup blobs 30 days plus configured soft
 delete. LRS is single-region storage. This is not cross-region disaster recovery.
-Nightly backup recovery point is up to 24 hours of engine state; verify last
+The scheduled backup recovery point is up to 24 hours of engine state; verify last
 successful backup regularly. Financial/trading activity after it must be recovered
 from authoritative broker evidence before any resumption.
+
+## 5. Weekday VM power schedule
+
+[`azure/vm-schedule.bicep`](azure/vm-schedule.bicep) creates two Consumption
+Logic Apps. They start `tradex-worker` at 07:30 IST and deallocate it at 17:00
+IST, Monday through Friday. Each workflow's managed identity receives Virtual
+Machine Contributor only at that VM's resource scope. No secret, webhook or
+public management endpoint is added. Azure manages recurrence time using
+`India Standard Time`; systemd restarts the enabled worker and timers after boot.
+
+The public IP in `main.bicep` is static, so deallocation does not change the SSH
+address. The OS disk, static public IP, storage, Key Vault and small Logic App
+execution charges remain billable while compute is deallocated. The schedule
+does not know exchange holidays: on a weekday holiday it still powers on at
+07:30 and off at 17:00. Saturday and Sunday stay off after Friday's shutdown.
+Manual starts and stops remain available in Azure.
+
+Deploy from an authenticated Cloud Shell checkout after installing the release
+that contains the 16:30 backup timer:
+
+```bash
+bash deploy/azure/enable-vm-schedule.sh \
+  1cc4b1a3-0235-4495-862e-84ed882850c8 \
+  tradex-student \
+  tradex-worker
+```
+
+The deployment is idempotent. The script verifies that both workflows are
+enabled and refuses scheduled deallocation if `tradex-ip` is not static. RBAC
+can take several minutes to propagate after the first deployment, so do not
+force an immediate deallocation during market hours.
+
+```bash
+az resource show -g tradex-student \
+  --resource-type Microsoft.Logic/workflows \
+  -n tradex-vm-start-weekdays \
+  --query '{state:properties.state,trigger:properties.definition.triggers}' -o json
+
+az resource show -g tradex-student \
+  --resource-type Microsoft.Logic/workflows \
+  -n tradex-vm-deallocate-weekdays \
+  --query '{state:properties.state,trigger:properties.definition.triggers}' -o json
+
+az network public-ip show -g tradex-student -n tradex-ip \
+  --query '{ip:ipAddress,allocation:publicIPAllocationMethod}' -o json
+```
+
+After the first scheduled wake, verify the paper worker heartbeat before relying
+on unattended operation. After the first scheduled shutdown, the power state
+must be `VM deallocated`, which is the compute-saving state. `VM stopped` alone
+can remain allocated and billed.
 
 For a drill, download a matching `.sqlite` / `.sqlite.json` pair to an isolated
 directory. With the execution service stopped, restore to a **new filename**:
