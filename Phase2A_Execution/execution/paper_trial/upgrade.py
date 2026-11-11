@@ -14,7 +14,7 @@ from .ledger import read_state
 from .report import snapshot, write_private
 
 
-def upgrade(config_path, db_path, backup_dir, expected_implementation, release, now=None, check=False):
+def upgrade(config_path, db_path, backup_dir, expected_implementation, release, now=None, check=False, expand_universe=False):
     now = time.time() if now is None else now
     config_path, db_path, backup_dir = map(Path, (config_path, db_path, backup_dir))
     if not re.fullmatch(r'[a-f0-9]{64}', expected_implementation) or not re.fullmatch(r'[a-f0-9]{40}', release):
@@ -46,21 +46,37 @@ def upgrade(config_path, db_path, backup_dir, expected_implementation, release, 
         policy_change = cfg.exit_policy != 'NET_PROFIT_PRICE_STOP'
         new_cfg = (replace(cfg, exit_policy='NET_PROFIT_PRICE_STOP', net_profit_inr='1', price_loss_inr='2',
                            recycle_entries=True, fee_model=CURRENT_FEES) if policy_change else cfg)
-        if not policy_change and state['implementation_sha256'] == implementation_fingerprint():
+        universe_change = False
+        if expand_universe:
+            from .upstox import expanded_instruments, APPROVED_SYMBOLS, APPROVED_TIMES
+            symbols = tuple(sorted(cfg.instruments, key=lambda s: cfg.instruments[s]['slot']))
+            if symbols not in (APPROVED_SYMBOLS[:3], APPROVED_SYMBOLS):
+                raise ValueError('Expansion requires the original three or the reviewed eight stocks')
+            resolved = expanded_instruments()
+            if any(resolved[s] != row for s, row in cfg.instruments.items()):
+                raise ValueError('Existing instrument metadata changed; inspect before upgrading')
+            if symbols != APPROVED_SYMBOLS:
+                effective = next(day for day in cfg.sessions if now < stamp(day, '09:10'))
+                new_cfg = replace(new_cfg, instruments=resolved, entry_times=APPROVED_TIMES,
+                                  universe_effective_date=effective)
+                universe_change = True
+        if not policy_change and not universe_change and state['implementation_sha256'] == implementation_fingerprint():
             raise ValueError('This release and corrected policy are already active')
         cash = D(cfg.initial_cash) + D(state['realized_gross']) - D(state['fees'])
-        final_status = 'POLICY_UPGRADED' if policy_change else 'RELEASE_UPGRADED'
+        final_status = 'UNIVERSE_UPGRADED' if universe_change else 'POLICY_UPGRADED' if policy_change else 'RELEASE_UPGRADED'
         result = dict(status='UPGRADE_CHECKED' if check else final_status,
                       cash_preserved=str(cash), trades_preserved=len(state['trades']),
                       sessions_preserved=cfg.sessions, config_hash=new_cfg.fingerprint,
                       exit_policy=new_cfg.exit_policy, loss_basis='PRICE', price_loss_inr=new_cfg.price_loss_inr,
                       release=release, backup=str(backup_dir))
+        result.update(instruments=new_cfg.instruments, entry_times=new_cfg.entry_times,
+                      universe_effective_date=new_cfg.universe_effective_date)
         if check:
             return result
         backup_dir.mkdir(mode=0o700, parents=True, exist_ok=False)
         snapshot(db_path, backup_dir / 'trial.sqlite')
         write_private(backup_dir / 'config.json', old_config, exclusive=True)
-        receipt = dict(kind='POLICY_UPGRADE' if policy_change else 'RELEASE_UPGRADE',
+        receipt = dict(kind='UNIVERSE_UPGRADE' if universe_change else 'POLICY_UPGRADE' if policy_change else 'RELEASE_UPGRADE',
                        at=now, from_config_hash=state['config_hash'], to_config_hash=new_cfg.fingerprint,
                        from_config=state['config'], to_config=asdict(new_cfg),
                        from_implementation=state['implementation_sha256'],
@@ -82,7 +98,7 @@ def upgrade(config_path, db_path, backup_dir, expected_implementation, release, 
             try:
                 changes = dict(schema=2, config=asdict(new_cfg), config_hash=new_cfg.fingerprint,
                                implementation_sha256=implementation_fingerprint(), release=release)
-                if policy_change:
+                if policy_change or universe_change:
                     changes['policy_history'] = state.get('policy_history', []) + [receipt]
                 else:
                     changes['release_history'] = state.get('release_history', []) + [receipt]

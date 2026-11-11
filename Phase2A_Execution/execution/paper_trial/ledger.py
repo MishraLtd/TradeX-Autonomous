@@ -285,6 +285,8 @@ class Ledger:
         symbols = sorted(self.cfg.instruments, key=lambda s: self.cfg.instruments[s]['slot'])
         day_index = self.cfg.sessions.index(day)
         for index, hhmm in enumerate(self.cfg.entry_times):
+            if self.cfg.universe_effective_date and day < self.cfg.universe_effective_date and index >= 3:
+                continue
             due = stamp(day, hhmm)
             slot_id = day + ':' + str(index)
             if slot_id in self.s['slots'] or now < due:
@@ -328,6 +330,8 @@ class Ledger:
             return
         heads = self.s.setdefault('recycle_heads', {})
         for index in range(len(self.cfg.entry_times)):
+            if self.cfg.universe_effective_date and day < self.cfg.universe_effective_date and index >= 3:
+                continue
             root = day + ':' + str(index)
             if root not in self.s['trades']:
                 continue

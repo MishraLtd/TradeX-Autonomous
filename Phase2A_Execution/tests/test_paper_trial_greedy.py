@@ -474,6 +474,7 @@ class UpgradeTest(unittest.TestCase):
         from execution.paper_trial.config import dumps
         old = asdict(replace(self.cfg, exit_policy='NET_CASH', recycle_entries=True, fee_model=CURRENT_FEES))
         old.pop('price_loss_inr')  # exact configuration shape of release 41ce136
+        old.pop('universe_effective_date')
         expected_hash = hashlib.sha256(dumps(old).encode()).hexdigest()
         self.assertEqual(TrialConfig(**old).fingerprint, expected_hash)
         state = json.loads(json.dumps(self.original))
@@ -495,6 +496,7 @@ class UpgradeTest(unittest.TestCase):
         from execution.paper_trial.config import dumps
         corrected = asdict(replace(self.cfg, exit_policy='NET_PROFIT_PRICE_STOP',
                                    recycle_entries=True, fee_model=CURRENT_FEES))
+        corrected.pop('universe_effective_date')
         corrected_hash = hashlib.sha256(dumps(corrected).encode()).hexdigest()
         state = json.loads(json.dumps(self.original))
         policy_history = [{'kind': 'POLICY_UPGRADE', 'at': self.now - 100}]
@@ -511,6 +513,48 @@ class UpgradeTest(unittest.TestCase):
         self.assertEqual(after['trades'], state['trades'])
         self.assertEqual(after['fees'], state['fees'])
         self.assertEqual(after['config_hash'], corrected_hash)
+
+    def test_universe_expansion_preserves_history_and_only_applies_to_future_sessions(self):
+        from execution.paper_trial.upstox import APPROVED_SYMBOLS, APPROVED_TIMES
+        resolved = dict(self.cfg.instruments)
+        keys = ['INE338F01015', 'INE423A01024', 'INE296A01032', 'INE982J01020', 'INE095A01012']
+        for i, (symbol, key) in enumerate(zip(APPROVED_SYMBOLS[3:], keys), 3):
+            resolved[symbol] = dict(key='NSE_EQ|' + key, tick='0.05', lot_size=1, mis_eligible=True, slot=i)
+        with patch('execution.paper_trial.upstox.expanded_instruments', return_value=resolved):
+            result = self.migrate(expand_universe=True)
+        self.assertEqual(result['status'], 'UNIVERSE_UPGRADED')
+        cfg = TrialConfig.load(self.config_path)
+        self.assertEqual(tuple(cfg.entry_times), APPROVED_TIMES)
+        self.assertEqual(len(cfg.instruments), 8)
+        self.assertEqual(cfg.max_positions, 3)
+        self.assertEqual(cfg.universe_effective_date, DATES[1])
+        state = read_state(self.path)
+        self.assertEqual(state['trades'], self.original['trades'])
+        self.assertEqual(state['fees'], self.original['fees'])
+        book = Ledger(self.path, cfg)
+        try:
+            book.step(self.now + 1, market(self.now + 1), {})
+            self.assertFalse(any(s['day'] == DATES[0] and s['symbol'] in APPROVED_SYMBOLS[3:]
+                                 for s in book.s['slots'].values()))
+            for hhmm in APPROVED_TIMES:
+                at = stamp(DATES[1], hhmm)
+                for offset in (0, .3):
+                    t = at + offset
+                    template = quotes(t)['SBIN']
+                    book.step(t, market(t), {s: dict(template) for s in APPROVED_SYMBOLS})
+                    self.assertLessEqual(len(book.active()) + len(book.pending()), 3)
+            roots = [book.s['slots'][DATES[1] + ':' + str(i)] for i in range(8)]
+            self.assertEqual(tuple(s['symbol'] for s in roots), APPROVED_SYMBOLS)
+        finally:
+            book.close()
+
+    def test_failed_universe_eligibility_preflight_leaves_database_untouched(self):
+        from execution.paper_trial.upstox import DataError
+        with patch('execution.paper_trial.upstox.expanded_instruments', side_effect=DataError('NOT_ELIGIBLE')):
+            with self.assertRaises(DataError):
+                self.migrate(expand_universe=True)
+        self.assertEqual(read_state(self.path), self.original)
+        self.assertFalse((self.base / 'backup').exists())
 
     def test_open_position_pending_entry_and_source_mismatch_refused(self):
         import sqlite3

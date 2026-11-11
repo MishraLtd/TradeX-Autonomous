@@ -1,5 +1,9 @@
 # Five-session Upstox intraday paper trial
 
+The latest approved expansion contains eight stocks. See [the eight-stock
+schedule and cash-preserving VM upgrade](UNIVERSE.md). Existing three-stock
+trials require the explicit `--expand-universe` upgrade option.
+
 This trial uses real Upstox market data with an entirely local simulated account.
 The trial entry point cannot submit, cancel or modify a broker order. It has no
 live-mode flag and does not use the Upstox trading SDK. The existing Kite CNC
@@ -17,8 +21,8 @@ restart alone cannot change their frozen config and code fingerprint.
 | Maximum entry budget | ₹2,000 including estimated entry fees |
 | Maximum simultaneous positions | 3; pending entries reserve a slot and cash |
 | Financing | Whole shares; 100% notional reserved on both long and short entries; no leverage |
-| Fixed test universe | SBIN, ITC, HDFCBANK; current NSE EQ and MIS eligibility verified |
-| Entries, IST | 09:30 SBIN; 10:30 ITC; 11:30 HDFCBANK |
+| Fixed test universe | SBIN, ITC, HDFCBANK, KLBRENG-B, ADANIENT, BAJFINANCE, PAYTM, INDUSINDBK; NSE EQ and MIS eligibility verified |
+| Entries, IST | 09:30 SBIN; 10:30 ITC; 11:30 HDFCBANK; 12:00 KLBRENG-B; 12:30 ADANIENT; 13:00 BAJFINANCE; 13:30 PAYTM; 14:00 INDUSINDBK |
 | Session 1 / 3 / 5 directions | Buy–sell SBIN; sell–buy ITC; buy–sell HDFCBANK |
 | Session 2 / 4 directions | Sell–buy SBIN; buy–sell ITC; sell–buy HDFCBANK |
 | Profit exit | Whole-trade estimated liquidation net strictly above ₹1; no fixed price target |
@@ -29,7 +33,7 @@ restart alone cannot change their frozen config and code fingerprint.
 | Length | Five provider-confirmed regular exchange sessions, frozen at setup |
 
 These symbols and directions are operational test inputs, not investment
-recommendations. There is no learned entry strategy. There are three initial
+recommendations. There is no learned entry strategy. There are eight initial
 scheduled entries per day, followed by repeated entries after their positions
 fully close. Each entry
 gets the lesser of ₹2,000 and available cash divided by unused position slots.
@@ -46,7 +50,7 @@ times use `Asia/Kolkata`, regardless of the VM's UTC clock.
 - The read-only Analytics Token is stored in Key Vault as
   `upstox-analytics-token`. The VM reads it using managed identity. No daily
   OAuth login, API secret, broker-order permissions or public API port is needed.
-- A single V3 `full` WebSocket subscription receives the three instrument keys.
+- A single V3 `full` WebSocket subscription receives all approved instrument keys.
   Subscriptions are binary; data uses Upstox's pinned Protobuf schema. The first
   book for each symbol on every connection is a snapshot and cannot execute.
 - Both provider and local receipt timestamps must be within 15 seconds, with

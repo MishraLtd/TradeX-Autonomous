@@ -148,7 +148,15 @@ def resolve_instruments(symbols, bod, mis):
     return result
 
 
-def prepare_config(client, now=None, symbols=('SBIN', 'ITC', 'HDFCBANK')):
+APPROVED_SYMBOLS = ('SBIN', 'ITC', 'HDFCBANK', 'KLBRENG-B', 'ADANIENT', 'BAJFINANCE', 'PAYTM', 'INDUSINDBK')
+APPROVED_TIMES = ('09:30', '10:30', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00')
+
+
+def expanded_instruments():
+    return resolve_instruments(APPROVED_SYMBOLS, load_instruments('NSE.json.gz'), load_instruments('NSE_MIS.json.gz'))
+
+
+def prepare_config(client, now=None, symbols=APPROVED_SYMBOLS):
     now = time.time() if now is None else now
     client.websocket_url()  # Verify streaming authorization; discard signed URL.
     instruments = resolve_instruments(symbols, load_instruments('NSE.json.gz'), load_instruments('NSE_MIS.json.gz'))
@@ -161,7 +169,7 @@ def prepare_config(client, now=None, symbols=('SBIN', 'ITC', 'HDFCBANK')):
         if regular_session(client, day):
             sessions.append(day)
         if len(sessions) == 5:
-            return TrialConfig(instruments=instruments, sessions=sessions, fee_model=CURRENT_FEES,
+            return TrialConfig(instruments=instruments, sessions=sessions, entry_times=APPROVED_TIMES[:len(symbols)], fee_model=CURRENT_FEES,
                                exit_policy='NET_PROFIT_PRICE_STOP', recycle_entries=True)
     raise DataError('FIVE_REGULAR_SESSIONS_NOT_FOUND')
 

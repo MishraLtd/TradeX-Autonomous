@@ -17,7 +17,8 @@ def main(argv=None):
     parser.add_argument('--db', default='/var/lib/tradex/upstox-trial/trial.sqlite')
     sub = parser.add_subparsers(dest='command', required=True)
     prep = sub.add_parser('prepare', help='Check credentials, resolve stocks and freeze the next five sessions')
-    prep.add_argument('--symbols', nargs=3, default=['SBIN', 'ITC', 'HDFCBANK'])
+    from .upstox import APPROVED_SYMBOLS
+    prep.add_argument('--symbols', nargs='+', default=list(APPROVED_SYMBOLS))
     sub.add_parser('run')
     sub.add_parser('health')
     sub.add_parser('status')
@@ -31,6 +32,7 @@ def main(argv=None):
     migration.add_argument('--expected-implementation', required=True)
     migration.add_argument('--release', required=True)
     migration.add_argument('--check', action='store_true')
+    migration.add_argument('--expand-universe', action='store_true')
     args = parser.parse_args(argv)
     # This entry point has no --live option and refuses a live worker env even
     # for prepare. It cannot instantiate the legacy Kite execution path.
@@ -47,7 +49,8 @@ def main(argv=None):
     if args.command == 'upgrade-greedy':
         from .upgrade import upgrade
         print(dumps(upgrade(args.config, args.db, args.backup_directory,
-                            args.expected_implementation, args.release, check=args.check)))
+                            args.expected_implementation, args.release, check=args.check,
+                            expand_universe=args.expand_universe)))
         return 0
     cfg = TrialConfig.load(args.config)
     if args.command == 'run':
