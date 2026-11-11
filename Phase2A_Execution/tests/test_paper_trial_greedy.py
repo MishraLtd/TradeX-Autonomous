@@ -376,7 +376,7 @@ class UpgradeTest(unittest.TestCase):
             self.book.step(t, market(t), quotes(t, {'SBIN': price}))
         # Simulate the exact legacy JSON shape (without new optional fields).
         old = asdict(self.cfg)
-        for key in ('exit_policy', 'net_profit_inr', 'net_loss_inr', 'recycle_entries', 'price_loss_inr'):
+        for key in ('exit_policy', 'net_profit_inr', 'net_loss_inr', 'recycle_entries', 'price_loss_inr', 'entry_policy'):
             old.pop(key)
         write_private(self.config_path, old)
         with self.book.atomic():
@@ -475,6 +475,7 @@ class UpgradeTest(unittest.TestCase):
         old = asdict(replace(self.cfg, exit_policy='NET_CASH', recycle_entries=True, fee_model=CURRENT_FEES))
         old.pop('price_loss_inr')  # exact configuration shape of release 41ce136
         old.pop('universe_effective_date')
+        old.pop('entry_policy')
         expected_hash = hashlib.sha256(dumps(old).encode()).hexdigest()
         self.assertEqual(TrialConfig(**old).fingerprint, expected_hash)
         state = json.loads(json.dumps(self.original))
@@ -497,6 +498,7 @@ class UpgradeTest(unittest.TestCase):
         corrected = asdict(replace(self.cfg, exit_policy='NET_PROFIT_PRICE_STOP',
                                    recycle_entries=True, fee_model=CURRENT_FEES))
         corrected.pop('universe_effective_date')
+        corrected.pop('entry_policy')
         corrected_hash = hashlib.sha256(dumps(corrected).encode()).hexdigest()
         state = json.loads(json.dumps(self.original))
         policy_history = [{'kind': 'POLICY_UPGRADE', 'at': self.now - 100}]
@@ -555,6 +557,48 @@ class UpgradeTest(unittest.TestCase):
                 self.migrate(expand_universe=True)
         self.assertEqual(read_state(self.path), self.original)
         self.assertFalse((self.base / 'backup').exists())
+
+    def _rotation_upgrade(self, already_expanded=False):
+        import sqlite3
+        from execution.paper_trial.upstox import APPROVED_SYMBOLS, APPROVED_TIMES
+        resolved = dict(self.cfg.instruments)
+        keys = ['INE338F01015', 'INE423A01024', 'INE296A01032', 'INE982J01020', 'INE095A01012']
+        for i, (symbol, key) in enumerate(zip(APPROVED_SYMBOLS[3:], keys), 3):
+            resolved[symbol] = dict(key='NSE_EQ|' + key, tick='0.05', lot_size=1, mis_eligible=True, slot=i)
+        if already_expanded:
+            cfg = replace(self.cfg, instruments=resolved, entry_times=APPROVED_TIMES,
+                          exit_policy='NET_PROFIT_PRICE_STOP', fee_model=CURRENT_FEES, recycle_entries=True)
+            state = read_state(self.path)
+            state.update(config=asdict(cfg), config_hash=cfg.fingerprint)
+            with sqlite3.connect(self.path) as db:
+                db.execute('UPDATE trial SET value=? WHERE id=1', (json.dumps(state),))
+            write_private(self.config_path, asdict(cfg))
+        before = read_state(self.path)
+        with patch('execution.paper_trial.upstox.expanded_instruments', return_value=resolved):
+            self.migrate(random_rotation=True)
+        cfg = TrialConfig.load(self.config_path)
+        after = read_state(self.path)
+        self.assertEqual(cfg.entry_policy, 'RANDOM_ROTATION')
+        self.assertFalse(cfg.entry_times)
+        self.assertEqual(len(cfg.instruments), 8)
+        for key in ('trades', 'fees', 'realized_gross', 'sessions', 'slots'):
+            self.assertEqual(after[key], before[key])
+        self.assertEqual(read_state(self.base / 'backup/trial.sqlite'), before)
+        book = Ledger(self.path, cfg)
+        try:
+            at = stamp(DATES[1], '09:17')
+            q = quotes(at)['SBIN']
+            book.step(at, market(at), {s: dict(q) for s in resolved})
+            self.assertEqual(len(book.pending()), 1)
+            self.assertIn(':rotation:', book.pending()[0]['id'])
+        finally:
+            book.close()
+
+    def test_three_stock_trial_can_upgrade_directly_to_eight_stock_rotation(self):
+        self._rotation_upgrade()
+
+    def test_eight_stock_corrected_trial_can_upgrade_to_rotation(self):
+        self._rotation_upgrade(already_expanded=True)
 
     def test_open_position_pending_entry_and_source_mismatch_refused(self):
         import sqlite3

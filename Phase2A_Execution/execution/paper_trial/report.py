@@ -81,7 +81,9 @@ def report(path, now=None):
         trade['loss_basis'] = ('PRICE' if policy == 'NET_PROFIT_PRICE_STOP' else
                                'NET' if policy == 'NET_CASH' else 'PRICE_PERCENT')
         trade['valuation_fresh'] = not trade['remaining'] or valuation.fresh(trade['symbol'], now)
-        phase = phases.setdefault(policy + ':' + model, dict(exit_policy=policy, fee_model=model,
+        entry_policy = trade.get('entry_policy', 'FIXED_SCHEDULE')
+        phase = phases.setdefault(entry_policy + ':' + policy + ':' + model,
+                                  dict(entry_policy=entry_policy, exit_policy=policy, fee_model=model,
                                   trades=0, closed_trades=0, realized_net_closed=D(0)))
         phase['trades'] += 1
         if trade['state'] == 'CLOSED':

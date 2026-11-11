@@ -106,5 +106,5 @@ systemctl start tradex-maintain@health.service
 systemctl enable --now tradex-health.timer tradex-backup.timer
 trap - ERR
 echo 'Paper trial activated. The fixed calendar starts at the dates printed by prepare.'
-echo 'Live Upstox quote and scheduled-fill acceptance must be checked during the first session.'
+echo 'Live Upstox quotes and simulated rotation fills must be checked during the first session.'
 runuser -u tradex -- env TRADEX_MODE=upstox-paper "$python" -m execution.paper_trial health

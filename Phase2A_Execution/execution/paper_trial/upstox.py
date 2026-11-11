@@ -164,12 +164,13 @@ def prepare_config(client, now=None, symbols=APPROVED_SYMBOLS):
     today = datetime.fromtimestamp(now, IST).date()
     for offset in range(30):
         day = (today + timedelta(days=offset)).isoformat()
-        if offset == 0 and now >= stamp(day, '09:25'):
+        if offset == 0 and now >= stamp(day, '09:10'):
             continue
         if regular_session(client, day):
             sessions.append(day)
         if len(sessions) == 5:
-            return TrialConfig(instruments=instruments, sessions=sessions, entry_times=APPROVED_TIMES[:len(symbols)], fee_model=CURRENT_FEES,
+            return TrialConfig(instruments=instruments, sessions=sessions, entry_times=(),
+                               entry_policy='RANDOM_ROTATION', fee_model=CURRENT_FEES,
                                exit_policy='NET_PROFIT_PRICE_STOP', recycle_entries=True)
     raise DataError('FIVE_REGULAR_SESSIONS_NOT_FOUND')
 

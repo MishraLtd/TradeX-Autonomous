@@ -1,16 +1,19 @@
 # TradeX Autonomous
 
 Current focus: **five-session intraday paper trading on real Upstox data**,
-with ₹4,000 virtual cash, a ₹2,000 entry cap, at most three positions, fixed
-scheduled first long/short entries, net-cash exits and repeated entries until
+with ₹4,000 virtual cash, a ₹2,000 entry cap, one focused stock at a time,
+uniform random stock selection, net-cash exits and repeated entries until
 the 15:00 IST intraday cutoff. Take profit above ₹1 estimated net or exit below
 −₹2 estimated price P&L per whole trade, with fees/taxes additional to that loss;
 profit must still exceed ₹1 after all costs. No daily trade-count cap.
+Stay with the selected stock until three consecutive net losses or the last
+three closed trades total at most ₹10 net; then draw another eligible stock.
+There are no per-stock entry times. The long/short direction formula is unchanged.
 The ₹100 daily loss guard remains active. These are triggers, not guaranteed fills.
 See the [Upstox paper setup and VM runbook](deploy/UPSTOX_PAPER.md). The trial
 uses a read-only Analytics Token and cannot place broker orders. It has its
 own frozen config and ledger. For an existing trial, use the
-[audited upgrade preserving cash and history](deploy/UPSTOX_GREEDY.md).
+[rotation upgrade preserving cash and history](deploy/ROTATION.md).
 The operator reported the original policy's first market session; the new
 policy still requires VM activation and observation.
 

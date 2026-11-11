@@ -73,6 +73,7 @@ class TrialConfig:
     recycle_entries: bool = False
     price_loss_inr: str = '2'
     universe_effective_date: str | None = None
+    entry_policy: str = 'FIXED_SCHEDULE'
 
     def __post_init__(self):
         if self.mode != MODE or self.fee_model not in (LEGACY_FEES, CURRENT_FEES):
@@ -87,7 +88,11 @@ class TrialConfig:
             raise ValueError('Invalid account or trade budget')
         if type(self.max_positions) is not int or not 1 <= self.max_positions <= 3:
             raise ValueError('At most three paper positions')
-        if not 3 <= len(self.instruments) <= 8 or len(self.entry_times) != len(self.instruments):
+        if self.entry_policy not in ('FIXED_SCHEDULE', 'RANDOM_ROTATION'):
+            raise ValueError('Unknown entry policy')
+        if self.entry_policy == 'RANDOM_ROTATION' and (self.entry_times or self.exit_policy != 'NET_PROFIT_PRICE_STOP'):
+            raise ValueError('Rotation requires no stock entry times and the corrected exit policy')
+        if not 3 <= len(self.instruments) <= 8 or (self.entry_policy == 'FIXED_SCHEDULE' and len(self.entry_times) != len(self.instruments)):
             raise ValueError('Require three to eight approved NSE equities with matching entry slots')
         keys = set()
         if {row.get('slot') for row in self.instruments.values()} != set(range(len(self.instruments))):
@@ -109,7 +114,7 @@ class TrialConfig:
                 raise ValueError('Invalid session date')
         if self.universe_effective_date is not None and self.universe_effective_date not in self.sessions:
             raise ValueError('Universe effective date must be a planned session')
-        ordered = tuple(self.entry_times) + (self.flatten_time, self.hard_close_time)
+        ordered = (tuple(self.entry_times) or ('09:15',)) + (self.flatten_time, self.hard_close_time)
         if ordered != tuple(sorted(set(ordered))) or ordered[0] < '09:15' or ordered[-1] > '15:10':
             raise ValueError('Invalid intraday timetable')
         for hhmm in ordered:
@@ -131,6 +136,8 @@ class TrialConfig:
     @property
     def fingerprint(self):
         values = asdict(self)
+        if self.entry_policy == 'FIXED_SCHEDULE':
+            values.pop('entry_policy')
         if self.universe_effective_date is None:
             values.pop('universe_effective_date')
         # Preserve both previous fixed-percent and NET_CASH config hashes.

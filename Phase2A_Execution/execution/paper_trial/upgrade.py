@@ -14,7 +14,7 @@ from .ledger import read_state
 from .report import snapshot, write_private
 
 
-def upgrade(config_path, db_path, backup_dir, expected_implementation, release, now=None, check=False, expand_universe=False):
+def upgrade(config_path, db_path, backup_dir, expected_implementation, release, now=None, check=False, expand_universe=False, random_rotation=False):
     now = time.time() if now is None else now
     config_path, db_path, backup_dir = map(Path, (config_path, db_path, backup_dir))
     if not re.fullmatch(r'[a-f0-9]{64}', expected_implementation) or not re.fullmatch(r'[a-f0-9]{40}', release):
@@ -47,7 +47,7 @@ def upgrade(config_path, db_path, backup_dir, expected_implementation, release, 
         new_cfg = (replace(cfg, exit_policy='NET_PROFIT_PRICE_STOP', net_profit_inr='1', price_loss_inr='2',
                            recycle_entries=True, fee_model=CURRENT_FEES) if policy_change else cfg)
         universe_change = False
-        if expand_universe:
+        if expand_universe or random_rotation:
             from .upstox import expanded_instruments, APPROVED_SYMBOLS, APPROVED_TIMES
             symbols = tuple(sorted(cfg.instruments, key=lambda s: cfg.instruments[s]['slot']))
             if symbols not in (APPROVED_SYMBOLS[:3], APPROVED_SYMBOLS):
@@ -57,9 +57,13 @@ def upgrade(config_path, db_path, backup_dir, expected_implementation, release, 
                 raise ValueError('Existing instrument metadata changed; inspect before upgrading')
             if symbols != APPROVED_SYMBOLS:
                 effective = next(day for day in cfg.sessions if now < stamp(day, '09:10'))
-                new_cfg = replace(new_cfg, instruments=resolved, entry_times=APPROVED_TIMES,
+                new_cfg = replace(new_cfg, instruments=resolved,
+                                  entry_times=() if new_cfg.entry_policy == 'RANDOM_ROTATION' else APPROVED_TIMES,
                                   universe_effective_date=effective)
                 universe_change = True
+        if random_rotation:
+            policy_change = policy_change or cfg.entry_policy != 'RANDOM_ROTATION'
+            new_cfg = replace(new_cfg, entry_policy='RANDOM_ROTATION', entry_times=())
         if not policy_change and not universe_change and state['implementation_sha256'] == implementation_fingerprint():
             raise ValueError('This release and corrected policy are already active')
         cash = D(cfg.initial_cash) + D(state['realized_gross']) - D(state['fees'])
@@ -70,7 +74,7 @@ def upgrade(config_path, db_path, backup_dir, expected_implementation, release, 
                       exit_policy=new_cfg.exit_policy, loss_basis='PRICE', price_loss_inr=new_cfg.price_loss_inr,
                       release=release, backup=str(backup_dir))
         result.update(instruments=new_cfg.instruments, entry_times=new_cfg.entry_times,
-                      universe_effective_date=new_cfg.universe_effective_date)
+                      universe_effective_date=new_cfg.universe_effective_date, entry_policy=new_cfg.entry_policy)
         if check:
             return result
         backup_dir.mkdir(mode=0o700, parents=True, exist_ok=False)

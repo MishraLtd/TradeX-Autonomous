@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import sqlite3
+import secrets
 import time
 
 from .config import D, IST, dumps, stamp, price_tick, implementation_fingerprint, LEGACY_FEES
@@ -227,8 +228,11 @@ class Ledger:
                     if trade['day'] == day:
                         self._fill_exit(trade, fresh, liquidity, now)
             if planned_today:
-                self._schedule(now, day, allowed)
-                self._recycle(now, day, allowed)
+                if self.cfg.entry_policy == 'RANDOM_ROTATION':
+                    self._rotate(now, day, allowed)
+                else:
+                    self._schedule(now, day, allowed)
+                    self._recycle(now, day, allowed)
                 for slot in list(self.pending()):
                     if (slot['day'] != day or now > slot['expires'] or now >= stamp(day, self.cfg.flatten_time)
                             or self.s['halt'] or self.s['day_loss'].get(day)):
@@ -280,6 +284,79 @@ class Ledger:
                 target_hit = p >= D(trade['target']) if trade['direction'] == 'LONG' else p <= D(trade['target'])
                 if stop_hit or target_hit:
                     self.request_exit(trade, now, 'STOP_LOSS' if stop_hit else 'PROFIT_TARGET')
+
+    def _rotate(self, now, day, allowed):
+        """One focused stock; persist draws and completed-trade rolling windows."""
+        if self.active() or self.pending():
+            return
+        rotation = self.s.setdefault('rotation', {})
+        if rotation.get('day') != day:
+            if not allowed:
+                return
+            rotation.clear()
+            rotation.update(day=day, symbol=None, exclude=None, window=[], losses=0,
+                            sequence=0, visit=0, head=None, processed=None)
+        head = self.s['slots'].get(rotation['head'])
+        last = self.s['trades'].get(rotation['head'])
+        if last and last['state'] == 'CLOSED' and rotation['processed'] != last['id']:
+            net = D(last['gross_pnl']) - D(last['entry_fees']) - D(last['exit_fees'])
+            rotation['processed'] = last['id']
+            rotation['window'] = (rotation['window'] + [str(net)])[-3:]
+            rotation['losses'] = rotation['losses'] + 1 if net < 0 else 0
+            reason = ('THREE_NET_LOSSES' if rotation['losses'] >= 3 else
+                      'LAST_THREE_NET_AT_MOST_10' if len(rotation['window']) == 3
+                      and sum(map(D, rotation['window']), D(0)) <= 10 else None)
+            self.event(now, 'ROTATION_RESULT', trade=last['id'], symbol=last['symbol'], net=net,
+                       last_three=rotation['window'], consecutive_losses=rotation['losses'])
+            if reason:
+                self.event(now, 'ROTATION_LEAVE', symbol=rotation['symbol'], reason=reason,
+                           last_three=rotation['window'])
+                rotation.update(exclude=rotation['symbol'], symbol=None, window=[], losses=0)
+        # Account for a final close even at square-off or during a risk pause.
+        # Admission checks must not hide a completed trade from the audit.
+        if (not allowed or self.s['halt'] or self.s['day_loss'].get(day)
+                or now >= stamp(day, self.cfg.flatten_time)):
+            return
+        budget = min(D(self.cfg.per_trade_limit), self.available()).quantize(D('0.01'))
+        day_index = self.cfg.sessions.index(day)
+        eligible = []
+        for symbol, row in sorted(self.cfg.instruments.items()):
+            if self.cfg.universe_effective_date and day < self.cfg.universe_effective_date and row['slot'] >= 3:
+                continue
+            if not self.fresh(symbol, now):
+                continue
+            q = self.s['quotes'][symbol]
+            direction = 'LONG' if (row['slot'] + day_index) % 2 == 0 else 'SHORT'
+            p = self.entry_price(direction, symbol, q)
+            side = 'BUY' if direction == 'LONG' else 'SELL'
+            depth = q['ask_qty' if side == 'BUY' else 'bid_qty']
+            if (q.get('live') and p > 0 and budget >= p + fee(side, p, self.cfg.fee_model)
+                    and int(D(depth) * D(self.cfg.depth_participation)) > 0
+                    and (D(q['ask']) - D(q['bid'])) / D(q['bid']) <= D('.01')):
+                eligible.append(symbol)
+        if rotation['symbol'] is None:
+            candidates = [s for s in eligible if s != rotation['exclude']]
+            if not candidates:
+                return
+            rotation.update(symbol=secrets.choice(candidates), visit=rotation['visit'] + 1)
+            self.event(now, 'ROTATION_SELECT', symbol=rotation['symbol'], visit=rotation['visit'],
+                       candidates=candidates, probability_each='1/' + str(len(candidates)),
+                       excluded=rotation['exclude'])
+        symbol = rotation['symbol']
+        if symbol not in eligible:
+            return
+        q = self.s['quotes'][symbol]
+        if head and head['symbol'] == symbol and q['at'] <= head['quote_at']:
+            return
+        rotation['sequence'] += 1
+        slot_id = day + ':rotation:' + str(rotation['sequence'])
+        direction = 'LONG' if (self.cfg.instruments[symbol]['slot'] + day_index) % 2 == 0 else 'SHORT'
+        slot = dict(id=slot_id, day=day, symbol=symbol, direction=direction, state='PENDING', reason=None,
+                    visit=rotation['visit'], budget=str(budget), at=now, after=now + self.cfg.latency_seconds,
+                    quote_at=q['at'], expires=min(now + self.cfg.entry_window, stamp(day, self.cfg.flatten_time)))
+        self.s['slots'][slot_id] = slot
+        rotation['head'] = slot_id
+        self.event(now, 'ROTATION_ENTRY', **slot)
 
     def _schedule(self, now, day, allowed):
         symbols = sorted(self.cfg.instruments, key=lambda s: self.cfg.instruments[s]['slot'])
@@ -406,6 +483,7 @@ class Ledger:
                              if self.cfg.exit_policy == 'FIXED_PERCENT' else None),
                      stop=str(stop) if self.cfg.exit_policy == 'FIXED_PERCENT' else None,
                      exit_policy=self.cfg.exit_policy, fee_model=self.cfg.fee_model,
+                     entry_policy=self.cfg.entry_policy, rotation_visit=slot.get('visit'),
                      root_slot=slot.get('root_slot', slot['id']), cycle=slot.get('cycle', 0),
                      parent_trade=slot.get('parent_trade'),
                      exit_turnover='0', exit_fees='0', gross_pnl='0', exit_intent=None)
@@ -502,6 +580,7 @@ def summarize(state, now=None):
                 recycle_entries=cfg.recycle_entries, daily_loss_paused=bool(state['day_loss'].get(day)),
                 policy_history=state.get('policy_history', []),
                 release_history=state.get('release_history', []),
+                entry_policy=cfg.entry_policy, rotation=state.get('rotation'),
                 available_cash=str(obj.available()), equity_estimate=str(settled + unrealized),
                 reserved_entry_notional=str(sum((D(t['entry_price']) * t['remaining'] for t in open_trades), D(0))),
                 gross_realized=state['realized_gross'], estimated_fees=state['fees'],

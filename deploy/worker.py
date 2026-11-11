@@ -10,7 +10,7 @@ from execution.operations import run_fenced
 
 mode = os.environ.get('TRADEX_MODE', 'paper')
 if mode == 'upstox-paper':
-    # Exclusive fixed-schedule trial; never reaches the live/Kite branch below.
+    # Exclusive local paper trial; never reaches the live/Kite branch below.
     os.environ['TRADEX_TRIAL_LEASE_RECEIPT'] = '/run/tradex/lease.json'
     os.environ['TRADEX_TRIAL_RELEASE'] = Path(__file__).resolve().parents[1].name
     command = [sys.executable, '-m', 'execution.paper_trial',

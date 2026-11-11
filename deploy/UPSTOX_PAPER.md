@@ -1,8 +1,9 @@
 # Five-session Upstox intraday paper trial
 
-The latest approved expansion contains eight stocks. See [the eight-stock
-schedule and cash-preserving VM upgrade](UNIVERSE.md). Existing three-stock
-trials require the explicit `--expand-universe` upgrade option.
+The latest policy uses [eight approved stocks](UNIVERSE.md) and
+[random stock rotation](ROTATION.md), with no per-stock entry times. Existing
+trials require the explicit `--random-rotation` upgrade option, which also
+adds the five approved stocks if the trial still has only the original three.
 
 This trial uses real Upstox market data with an entirely local simulated account.
 The trial entry point cannot submit, cancel or modify a broker order. It has no
@@ -19,30 +20,31 @@ restart alone cannot change their frozen config and code fingerprint.
 | --- | --- |
 | Starting virtual cash | ₹4,000, once for the entire trial; no daily reset |
 | Maximum entry budget | ₹2,000 including estimated entry fees |
-| Maximum simultaneous positions | 3; pending entries reserve a slot and cash |
+| Simultaneous positions | One active/pending position under rotation; configured safety ceiling remains 3 |
 | Financing | Whole shares; 100% notional reserved on both long and short entries; no leverage |
 | Fixed test universe | SBIN, ITC, HDFCBANK, KLBRENG-B, ADANIENT, BAJFINANCE, PAYTM, INDUSINDBK; NSE EQ and MIS eligibility verified |
-| Entries, IST | 09:30 SBIN; 10:30 ITC; 11:30 HDFCBANK; 12:00 KLBRENG-B; 12:30 ADANIENT; 13:00 BAJFINANCE; 13:30 PAYTM; 14:00 INDUSINDBK |
-| Session 1 / 3 / 5 directions | Buy–sell SBIN; sell–buy ITC; buy–sell HDFCBANK |
-| Session 2 / 4 directions | Sell–buy SBIN; buy–sell ITC; sell–buy HDFCBANK |
+| Entries, IST | From 09:15 to before 15:00, only on a verified open market with fresh live quotes; no stock-specific schedule |
+| Selection | Equal probability among eligible, affordable stocks; exclude the immediately previous stock on rotation |
+| Direction | Existing instrument-index/session-index parity; reversed each planned session |
 | Profit exit | Whole-trade estimated liquidation net strictly above ₹1; no fixed price target |
 | Loss exit | Whole-trade estimated price P&L strictly below −₹2; fees/taxes are additional to this loss |
-| Re-entry | Same stock and scheduled direction after a complete profit/loss exit, until 15:00 IST; no daily trade-count cap |
+| Re-entry | Repeat the focused stock and direction after a complete exit; no daily trade-count cap |
+| Rotation | Three consecutive net losses OR the latest three closed trades total ≤₹10 net, including fees/taxes |
 | Daily loss action | At ₹100 accumulated losing-trade/open-position loss, pause entries and request exits; winners do not offset this gate |
 | Square-off | Request all remaining exits at 15:00 IST; unresolved at 15:10 fails the trial and blocks later entries |
 | Length | Five provider-confirmed regular exchange sessions, frozen at setup |
 
 These symbols and directions are operational test inputs, not investment
-recommendations. There is no learned entry strategy. There are eight initial
-scheduled entries per day, followed by repeated entries after their positions
-fully close. Each entry
-gets the lesser of ₹2,000 and available cash divided by unused position slots.
+recommendations. There is no learned entry strategy or predicted probability
+of profit. Each draw is uniform over its eligible candidate set, and each
+entry gets the lesser of ₹2,000 and available cash.
 The cap does not permit ₹6,000 of positions against ₹4,000. An unaffordable share
 is skipped. Short-sale proceeds never increase available funds.
 
-Each slot has a 60-second opportunity window. Late/restarted workers record a
-miss instead of chasing a missed entry. The following session reverses the
-directions deterministically. Nothing resets the account to hide losses. All
+Each entry intent expires after 60 seconds and requires a newer live quote
+after simulated latency. Restart preserves the selected stock, rolling results
+and pending intent. A new session starts a new selection, with reversed
+directions. Nothing resets the account to hide losses. All
 times use `Asia/Kolkata`, regardless of the VM's UTC clock.
 
 ## Execution and data assumptions
@@ -122,7 +124,7 @@ If `git` is absent, install it with `sudo apt-get update` and
 1. Stages an immutable release and installs pinned direct dependencies.
 2. Checks managed-identity token access and stream authorization, resolves the
    three stocks and freezes the next five regular sessions. Preparation after
-   09:25 IST starts on a later session, so the first slot is not already missed.
+   09:10 IST starts on a later session, leaving time for pre-market setup.
 3. Refuses to switch a live worker or reset an existing trial ledger.
 4. Stops the previous paper API/worker, verifies its positions are flat, and
    takes a consistent stopped-worker backup of **both** old DEMO databases and
@@ -221,7 +223,7 @@ equity, using the original fixed exits. These are operator-reported results,
 not an independently accessed VM audit. The new greedy policy has deterministic
 test coverage; its VM activation and market-session behavior still need operator
 evidence. Actual cloud restore and delivered notifications also need environment
-verification. A five-session fixed-schedule paper trial
+verification. A five-session paper trial with changing entry policies
 measures operational behavior and estimated results, not investment performance
 or readiness to risk real money.
 
