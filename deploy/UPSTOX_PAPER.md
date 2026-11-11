@@ -5,7 +5,11 @@ The trial entry point cannot submit, cancel or modify a broker order. It has no
 live-mode flag and does not use the Upstox trading SDK. The existing Kite CNC
 engine remains a separate mode; its live-account capabilities are not used here.
 
-## Frozen experiment
+Existing trials on the original fixed-percentage policy need the
+[cash-preserving greedy-policy upgrade](UPSTOX_GREEDY.md). A Git pull or service
+restart alone cannot change their frozen config and code fingerprint.
+
+## Experiment settings
 
 | Setting | Value |
 | --- | --- |
@@ -17,15 +21,17 @@ engine remains a separate mode; its live-account capabilities are not used here.
 | Entries, IST | 09:30 SBIN; 10:30 ITC; 11:30 HDFCBANK |
 | Session 1 / 3 / 5 directions | Buy–sell SBIN; sell–buy ITC; buy–sell HDFCBANK |
 | Session 2 / 4 directions | Sell–buy SBIN; buy–sell ITC; sell–buy HDFCBANK |
-| Target | 2% estimated net profit on filled entry notional, after estimated fees |
-| Stop | 1% price move against entry, rounded to the instrument tick |
+| Profit exit | Whole-trade estimated liquidation net strictly above ₹1; no fixed price target |
+| Loss exit | Whole-trade estimated liquidation net strictly below −₹2, including both legs' costs |
+| Re-entry | Same stock and scheduled direction after a complete profit/loss exit, until 15:00 IST; no daily trade-count cap |
 | Daily loss action | At ₹100 accumulated losing-trade/open-position loss, pause entries and request exits; winners do not offset this gate |
 | Square-off | Request all remaining exits at 15:00 IST; unresolved at 15:10 fails the trial and blocks later entries |
 | Length | Five provider-confirmed regular exchange sessions, frozen at setup |
 
 These symbols and directions are operational test inputs, not investment
-recommendations. There is no learned entry strategy. There are at most three
-scheduled entries per day, with no automatic re-entry after an exit. Each entry
+recommendations. There is no learned entry strategy. There are three initial
+scheduled entries per day, followed by repeated entries after their positions
+fully close. Each entry
 gets the lesser of ₹2,000 and available cash divided by unused position slots.
 The cap does not permit ₹6,000 of positions against ₹4,000. An unaffordable share
 is skipped. Short-sale proceeds never increase available funds.
@@ -140,12 +146,13 @@ sudo systemctl status tradex-maintain@backup.service --no-pager
 
 Require a fresh heartbeat, `market.connected=true`, `market.normal=true`,
 `market.calendar_valid=true`, increasing `live_quote_updates` and quote ages
-below 15 seconds. The first slot should create a paper trade with target/stop;
+below 15 seconds. The first slot should create a paper trade with
+`exit_policy=NET_CASH` and null price target/stop;
 it must not appear in Upstox's order book. Status includes only this local
 simulator's trades, not a claim to have inspected the real broker account.
 
 At 15:10 IST verify zero open positions, or investigate an explicit failure.
-Keep the code/config frozen for the five sessions. A missed session is counted
+Keep code/config frozen between explicit, audited policy upgrades. A missed session is counted
 and reported, not replaced with a better-looking sixth session. Use GitHub's
 **Cloud worker external health** workflow to verify its next scheduled run. The
 existing workflow consumes the same sanitized `health.json` and now detects
@@ -201,16 +208,17 @@ configuration/ledger decision, not an automatic weekly reset.
 
 ## Evidence and boundaries
 
-The earlier Azure DEMO round trip, private entry API and maintenance success
-were reported by the operator on 9 November 2026. This implementation adds
-credential-free automated tests for the new behavior. Activation on the VM,
-real streaming data, first scheduled fills, actual cloud restore and delivered
-notifications require operator-environment evidence. Do not describe them as
-verified solely because CI passes. A five-session fixed-schedule paper trial
+The operator supplied a completed 11 November 2026 session on real Upstox data:
+three closed simulated trades, ₹8.93 estimated fees, −₹31.58 net and ₹3,968.42
+equity, using the original fixed exits. These are operator-reported results,
+not an independently accessed VM audit. The new greedy policy has deterministic
+test coverage; its VM activation and market-session behavior still need operator
+evidence. Actual cloud restore and delivered notifications also need environment
+verification. A five-session fixed-schedule paper trial
 measures operational behavior and estimated results, not investment performance
 or readiness to risk real money.
 
-Official references reviewed 10 November 2026:
+Official references reviewed 10 November 2026; charge schedule rechecked 11 November:
 
 - [Analytics Token](https://upstox.com/developer/api-documentation/analytics-token/)
 - [V3 full market feed](https://upstox.com/developer/api-documentation/v3/get-market-data-feed/)

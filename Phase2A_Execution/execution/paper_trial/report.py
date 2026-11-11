@@ -8,8 +8,9 @@ from pathlib import Path
 import sqlite3
 import time
 
-from .config import D, dumps
-from .ledger import summarize
+from .config import D, dumps, TrialConfig, LEGACY_FEES
+from .ledger import summarize, Ledger
+from .costs import breakdown, fee_delta, fee
 
 
 def write_private(path, value, exclusive=False):
@@ -46,6 +47,43 @@ def report(path, now=None):
     closed = [t for t in result['trades'] if t['state'] == 'CLOSED']
     pnl = [D(t['gross_pnl']) - D(t['entry_fees']) - D(t['exit_fees']) for t in closed]
     fills = [e for e in events if e['kind'] == 'PAPER_FILL']
+    # Reconstruct old fee components using their original schedule. This is
+    # reporting only: historical fills, charged fees and cash are never rewritten.
+    totals, exit_turnovers, phases = {}, {}, {}
+    for fill in fills:
+        trade = state['trades'][fill['trade']]
+        model = trade.get('fee_model', LEGACY_FEES)
+        before = exit_turnovers.get(trade['id'], D(0)) if fill['leg'] == 'EXIT' else D(0)
+        after = before + D(fill['price']) * fill['quantity']
+        parts = fee_delta(fill['side'], before, after, model)
+        fill['fee_components'] = {k: str(v) for k, v in parts.items()}
+        fill['fee_model'] = model
+        if fill['leg'] == 'EXIT':
+            exit_turnovers[trade['id']] = after
+        for k, v in parts.items():
+            totals[k] = totals.get(k, D(0)) + v
+    valuation = object.__new__(Ledger)
+    valuation.s, valuation.cfg = state, TrialConfig(**state['config'])
+    for trade in result['trades']:
+        model = trade.get('fee_model', LEGACY_FEES)
+        policy = trade.get('exit_policy', 'FIXED_PERCENT')
+        opening, closing_side = ('BUY', 'SELL') if trade['direction'] == 'LONG' else ('SELL', 'BUY')
+        trade['entry_fee_components'] = {k: str(v) for k, v in breakdown(
+            opening, D(trade['entry_price']) * trade['quantity'], model).items()}
+        turnover = D(trade['exit_turnover'])
+        quote = state['quotes'].get(trade['symbol'])
+        if trade['remaining'] and quote:
+            turnover += valuation.exit_price(trade, quote) * trade['remaining']
+        trade['estimated_exit_fee_components'] = {k: str(v) for k, v in breakdown(closing_side, turnover, model).items()}
+        trade['estimated_total_fees'] = str(D(trade['entry_fees']) + fee(closing_side, turnover, model))
+        trade['net_pnl_estimate'] = str(valuation.net_liquidation(trade))
+        trade['valuation_fresh'] = not trade['remaining'] or valuation.fresh(trade['symbol'], now)
+        phase = phases.setdefault(policy + ':' + model, dict(exit_policy=policy, fee_model=model,
+                                  trades=0, closed_trades=0, realized_net_closed=D(0)))
+        phase['trades'] += 1
+        if trade['state'] == 'CLOSED':
+            phase['closed_trades'] += 1
+            phase['realized_net_closed'] += D(trade['net_pnl_estimate'])
     latency = sorted(e['at'] - e['requested_at'] for e in fills if e['leg'] == 'EXIT')
     peak, drawdown = D(state['config']['initial_cash']), D(0)
     for row in samples:
@@ -57,7 +95,9 @@ def report(path, now=None):
     for day in state['config']['sessions']:
         expected_seconds += max(0, min(now, stamp(day, '15:10')) - stamp(day, '09:15'))
     result.update(
-        report_schema=1, generated_at=now, assumptions=state['config'],
+        report_schema=2, generated_at=now, assumptions=state['config'],
+        paid_fee_components={k: str(v) for k, v in totals.items()},
+        policy_results=[{**p, 'realized_net_closed': str(p['realized_net_closed'])} for p in phases.values()],
         evidence='LOCAL_SIMULATION_ON_UPSTOX_DATA', closed_trades=len(closed),
         wins=sum(x > 0 for x in pnl), losses=sum(x < 0 for x in pnl),
         win_rate=sum(x > 0 for x in pnl) / len(closed) if closed else None,
@@ -74,6 +114,9 @@ def report(path, now=None):
         limitations=['Fees and fills are estimates, not broker executions.',
                      'Depth is a top-of-book observation, not guaranteed available liquidity.',
                      'One week of fixed entries tests operations, not a profitable strategy.',
+                     'Net exit thresholds trigger requests; gaps, latency and partial fills can breach them.',
+                     'Round-trip costs alone can breach the net loss threshold and cause rapid recycling.',
+                     'Policy changes split this experiment into distinct phases; compare them separately.',
                      'Stale or unresolved positions are never assigned invented closing fills.'])
     return result
 
@@ -130,7 +173,7 @@ def daily_report(result, day):
     from .config import stamp
     trades = [t for t in result['trades'] if t['day'] == day]
     closed = [t for t in trades if t['state'] == 'CLOSED']
-    return dict(report_schema=1, day=day, generated_at=result['generated_at'],
+    return dict(report_schema=2, day=day, generated_at=result['generated_at'],
                 evidence=result['evidence'], config_hash=result['config_hash'],
                 session=result['sessions'].get(day, 'PLANNED'), trades=trades,
                 closed_net_estimate=str(sum((D(t['gross_pnl']) - D(t['entry_fees']) - D(t['exit_fees']) for t in closed), D(0))),

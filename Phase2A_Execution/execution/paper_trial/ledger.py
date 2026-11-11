@@ -13,8 +13,8 @@ from pathlib import Path
 import sqlite3
 import time
 
-from .config import D, IST, dumps, stamp, price_tick, implementation_fingerprint
-from .costs import fee, target
+from .config import D, IST, dumps, stamp, price_tick, implementation_fingerprint, LEGACY_FEES
+from .costs import fee, target, breakdown, fee_delta
 
 
 def read_state(path):
@@ -101,14 +101,22 @@ class Ledger:
                           self.cfg.instruments[trade['symbol']]['tick'], buy)
 
     def unrealized(self, trade):
+        if not trade['remaining']:
+            return D(0)
         quote = self.s['quotes'].get(trade['symbol'])
         if not quote:
             return D(0)
         value = self.exit_price(trade, quote)
         gross = (value - D(trade['entry_price'])) * trade['remaining'] * (1 if trade['direction'] == 'LONG' else -1)
         closing = 'SELL' if trade['direction'] == 'LONG' else 'BUY'
-        extra_fee = fee(closing, D(trade['exit_turnover']) + value * trade['remaining']) - D(trade['exit_fees'])
+        extra_fee = fee(closing, D(trade['exit_turnover']) + value * trade['remaining'],
+                        trade.get('fee_model', LEGACY_FEES)) - D(trade['exit_fees'])
         return gross - extra_fee
+
+    def net_liquidation(self, trade):
+        """Whole-trade net estimate, including realized partial exits and ALL fees."""
+        return (D(trade['gross_pnl']) - D(trade['entry_fees']) - D(trade['exit_fees'])
+                + self.unrealized(trade))
 
     def available(self, exclude_slot=None):
         settled = D(self.cfg.initial_cash) + D(self.s['realized_gross']) - D(self.s['fees'])
@@ -125,7 +133,9 @@ class Ledger:
         quote = self.s['quotes'].get(trade['symbol'], {})
         trade['exit_intent'] = dict(at=now, after=now + self.cfg.latency_seconds,
                                     quote_at=quote.get('at', 0), reason=reason)
-        self.event(now, 'EXIT_REQUEST', trade=trade['id'], reason=reason)
+        trade['exit_intent']['net_estimate_at_request'] = str(self.net_liquidation(trade))
+        self.event(now, 'EXIT_REQUEST', trade=trade['id'], reason=reason,
+                   net_estimate_at_request=trade['exit_intent']['net_estimate_at_request'])
 
     def _accept_quotes(self, quotes, now):
         accepted = {}
@@ -203,8 +213,10 @@ class Ledger:
                         self._fill_exit(trade, fresh, liquidity, now)
             if planned_today:
                 self._schedule(now, day, allowed)
+                self._recycle(now, day, allowed)
                 for slot in list(self.pending()):
-                    if slot['day'] != day or now > slot['expires'] or self.s['halt'] or self.s['day_loss'].get(day):
+                    if (slot['day'] != day or now > slot['expires'] or now >= stamp(day, self.cfg.flatten_time)
+                            or self.s['halt'] or self.s['day_loss'].get(day)):
                         slot['state'], slot['reason'] = 'SKIPPED', 'ENTRY_EXPIRED_OR_PAUSED'
                     elif allowed:
                         self._fill_entry(slot, fresh, liquidity, now)
@@ -220,7 +232,7 @@ class Ledger:
         for trade in self.s['trades'].values():
             if trade['day'] != day:
                 continue
-            pnl = D(trade['gross_pnl']) - D(trade['entry_fees']) - D(trade['exit_fees']) + self.unrealized(trade)
+            pnl = self.net_liquidation(trade)
             losses += max(D(0), -pnl)
         if losses >= D(self.cfg.daily_loss_limit) and not self.s['day_loss'].get(day):
             self.s['day_loss'][day] = True
@@ -233,6 +245,15 @@ class Ledger:
             elif self.s['day_loss'].get(day) or self.s['halt']:
                 self.request_exit(trade, now, 'RISK_HALT')
             elif self.fresh(trade['symbol'], now):
+                if trade.get('exit_policy', 'FIXED_PERCENT') == 'NET_CASH':
+                    net = self.net_liquidation(trade)
+                    # Strict inequalities: exactly +1 or -2 does not trigger.
+                    # An accepted exit is durable; its later fills may be worse.
+                    if net < -D(self.cfg.net_loss_inr):
+                        self.request_exit(trade, now, 'NET_LOSS_LIMIT')
+                    elif net > D(self.cfg.net_profit_inr):
+                        self.request_exit(trade, now, 'NET_PROFIT_TAKE')
+                    continue
                 quote = self.s['quotes'][trade['symbol']]
                 p = self.exit_price(trade, quote)
                 stop_hit = p <= D(trade['stop']) if trade['direction'] == 'LONG' else p >= D(trade['stop'])
@@ -275,6 +296,60 @@ class Ledger:
             self.s['slots'][slot_id] = slot
             self.event(now, 'SCHEDULE_SLOT', **slot)
 
+    def _recycle(self, now, day, allowed):
+        """Repeat only a stock whose scheduled entry filled and fully closed.
+
+        A persisted head per scheduled slot makes replay/restart idempotent.
+        Direction and sizing stay with the original schedule. No daily count
+        cap, no pyramiding, and no re-entry on the closing quote.
+        """
+        if (not self.cfg.recycle_entries or not allowed or self.s['halt']
+                or self.s['day_loss'].get(day) or now >= stamp(day, self.cfg.flatten_time)):
+            return
+        heads = self.s.setdefault('recycle_heads', {})
+        for index in range(len(self.cfg.entry_times)):
+            root = day + ':' + str(index)
+            if root not in self.s['trades']:
+                continue
+            head = self.s['slots'][heads.get(root, root)]
+            if head['state'] == 'PENDING':
+                continue
+            parent = self.s['trades'].get(head['id']) or self.s['trades'][head['parent_trade']]
+            if parent['remaining'] or parent.get('reason') not in (
+                    'NET_PROFIT_TAKE', 'NET_LOSS_LIMIT'):
+                continue
+            symbol = parent['symbol']
+            if (len(self.active()) + len(self.pending()) >= self.cfg.max_positions
+                    or any(not self.fresh(t['symbol'], now) for t in self.active())
+                    or not self.fresh(symbol, now)):
+                continue
+            q = self.s['quotes'][symbol]
+            if (not q.get('live') or q['at'] <= head.get('quote_at', 0)
+                    or (D(q['ask']) - D(q['bid'])) / D(q['bid']) > D('0.01')):
+                continue
+            free_slots = self.cfg.max_positions - len(self.active()) - len(self.pending())
+            budget = min(D(self.cfg.per_trade_limit), self.available() / free_slots).quantize(D('0.01'))
+            side = 'BUY' if parent['direction'] == 'LONG' else 'SELL'
+            p = self.entry_price(parent['direction'], symbol, q)
+            if p <= 0 or budget < p + fee(side, p, self.cfg.fee_model):
+                continue  # Wait for affordable cash/price; do not create empty orders.
+            cycle = head.get('cycle', 0) + 1
+            slot_id = root + ':r' + str(cycle)
+            slot = dict(id=slot_id, root_slot=root, cycle=cycle, parent_trade=parent['id'],
+                        day=day, symbol=symbol, direction=parent['direction'], state='PENDING', reason=None,
+                        budget=str(budget), at=now, after=now + self.cfg.latency_seconds,
+                        quote_at=q['at'], expires=min(now + self.cfg.entry_window,
+                                                     stamp(day, self.cfg.flatten_time)))
+            self.s['slots'][slot_id] = slot
+            heads[root] = slot_id
+            self.event(now, 'RECYCLE_SLOT', **slot)
+
+    def entry_price(self, direction, symbol, quote):
+        buy = direction == 'LONG'
+        raw = D(quote['ask' if buy else 'bid'])
+        return price_tick(raw * (1 + D(self.cfg.slippage_bps) / 10000 * (1 if buy else -1)),
+                          self.cfg.instruments[symbol]['tick'], buy)
+
     def _fill_entry(self, slot, quotes, liquidity, now):
         q = quotes.get(slot['symbol'])
         if not q or now < slot['after'] or q['at'] <= slot['quote_at']:
@@ -284,12 +359,12 @@ class Ledger:
         side = 'BUY' if slot['direction'] == 'LONG' else 'SELL'
         tick = self.cfg.instruments[slot['symbol']]['tick']
         raw = D(q['ask' if side == 'BUY' else 'bid'])
-        p = price_tick(raw * (1 + D(self.cfg.slippage_bps) / 10000 * (1 if side == 'BUY' else -1)), tick, side == 'BUY')
+        p = self.entry_price(slot['direction'], slot['symbol'], q)
         if p <= 0:
             return
         budget = min(D(slot['budget']), self.available(exclude_slot=slot['id']))
         wanted = int(budget / p)
-        while wanted and wanted * p + fee(side, wanted * p) > budget:
+        while wanted and wanted * p + fee(side, wanted * p, self.cfg.fee_model) > budget:
             wanted -= 1
         qty = min(wanted, liquidity[(slot['symbol'], side)])
         if qty <= 0:
@@ -297,13 +372,18 @@ class Ledger:
                 slot['state'], slot['reason'] = 'SKIPPED', 'INSUFFICIENT_CASH_FOR_ONE_SHARE'
                 self.event(now, 'ENTRY_SKIPPED', slot=slot['id'], reason=slot['reason'])
             return
-        opening_fee = fee(side, qty * p)
+        opening_fee = fee(side, qty * p, self.cfg.fee_model)
         sign = 1 if slot['direction'] == 'LONG' else -1
         stop = price_tick(p * (1 - sign * D(self.cfg.stop_pct) / 100), tick, sign == -1)
         trade = dict(id=slot['id'], day=slot['day'], symbol=slot['symbol'], direction=slot['direction'],
                      state='OPEN', budget=slot['budget'], requested_quantity=wanted, quantity=qty, remaining=qty,
                      entry_at=now, entry_price=str(p), entry_fees=str(opening_fee),
-                     target=str(target(p, qty, slot['direction'], tick, self.cfg.profit_pct)), stop=str(stop),
+                     target=(str(target(p, qty, slot['direction'], tick, self.cfg.profit_pct, self.cfg.fee_model))
+                             if self.cfg.exit_policy == 'FIXED_PERCENT' else None),
+                     stop=str(stop) if self.cfg.exit_policy == 'FIXED_PERCENT' else None,
+                     exit_policy=self.cfg.exit_policy, fee_model=self.cfg.fee_model,
+                     root_slot=slot.get('root_slot', slot['id']), cycle=slot.get('cycle', 0),
+                     parent_trade=slot.get('parent_trade'),
                      exit_turnover='0', exit_fees='0', gross_pnl='0', exit_intent=None)
         self.s['trades'][trade['id']] = trade
         self.s['fees'] = str(D(self.s['fees']) + opening_fee)
@@ -311,6 +391,7 @@ class Ledger:
         liquidity[(slot['symbol'], side)] -= qty
         self.event(now, 'PAPER_FILL', trade=trade['id'], leg='ENTRY', side=side, quantity=qty,
                    price=p, fees=opening_fee, quote_at=q['at'], requested_at=slot['at'],
+                   fee_model=self.cfg.fee_model, fee_components=breakdown(side, qty * p, self.cfg.fee_model),
                    cancelled_quantity=wanted - qty, spread=str(D(q['ask']) - D(q['bid'])),
                    book_price=raw, slippage_cost=abs(p - raw) * qty)
 
@@ -326,9 +407,11 @@ class Ledger:
         if p <= 0:
             return
         cumulative = D(trade['exit_turnover']) + p * qty
-        charge = fee(side, cumulative) - D(trade['exit_fees'])
+        model = trade.get('fee_model', LEGACY_FEES)
+        components = fee_delta(side, trade['exit_turnover'], cumulative, model)
+        charge = fee(side, cumulative, model) - D(trade['exit_fees'])
         gross = (p - D(trade['entry_price'])) * qty * (1 if trade['direction'] == 'LONG' else -1)
-        trade['exit_turnover'], trade['exit_fees'] = str(cumulative), str(fee(side, cumulative))
+        trade['exit_turnover'], trade['exit_fees'] = str(cumulative), str(fee(side, cumulative, model))
         trade['gross_pnl'] = str(D(trade['gross_pnl']) + gross)
         trade['remaining'] -= qty
         self.s['realized_gross'] = str(D(self.s['realized_gross']) + gross)
@@ -338,6 +421,7 @@ class Ledger:
             trade.update(state='CLOSED', closed_at=now, reason=intent['reason'])
         self.event(now, 'PAPER_FILL', trade=trade['id'], leg='EXIT', side=side, quantity=qty,
                    price=p, fees=charge, quote_at=q['at'], requested_at=intent['at'], reason=intent['reason'],
+                   fee_model=model, fee_components=components,
                    book_price=q['ask' if side == 'BUY' else 'bid'],
                    slippage_cost=abs(p - D(q['ask' if side == 'BUY' else 'bid'])) * qty)
 
@@ -386,6 +470,9 @@ def summarize(state, now=None):
     return dict(mode=cfg.mode, checked_at=now, status='DEGRADED' if codes else 'HEALTHY', codes=codes,
                 implementation_sha256=state['implementation_sha256'], release=state['release'],
                 config_hash=state['config_hash'], initial_cash=cfg.initial_cash,
+                exit_policy=cfg.exit_policy, net_profit_inr=cfg.net_profit_inr, net_loss_inr=cfg.net_loss_inr,
+                recycle_entries=cfg.recycle_entries, daily_loss_paused=bool(state['day_loss'].get(day)),
+                policy_history=state.get('policy_history', []),
                 available_cash=str(obj.available()), equity_estimate=str(settled + unrealized),
                 reserved_entry_notional=str(sum((D(t['entry_price']) * t['remaining'] for t in open_trades), D(0))),
                 gross_realized=state['realized_gross'], estimated_fees=state['fees'],

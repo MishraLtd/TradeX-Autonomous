@@ -2,10 +2,16 @@
 
 Current focus: **five-session intraday paper trading on real Upstox data**,
 with ₹4,000 virtual cash, a ₹2,000 entry cap, at most three positions, fixed
-scheduled long/short entries, automatic targets/stops and end-of-day exits.
+scheduled first long/short entries, net-cash exits and repeated entries until
+the 15:00 IST intraday cutoff. Take profit above ₹1 estimated net or exit below
+−₹2 estimated net per whole trade, including costs; no daily trade-count cap.
+The ₹100 daily loss guard remains active. These are triggers, not guaranteed fills.
 See the [Upstox paper setup and VM runbook](deploy/UPSTOX_PAPER.md). The trial
 uses a read-only Analytics Token and cannot place broker orders. It has its
-own frozen config and ledger; live-data/VM acceptance is still pending.
+own frozen config and ledger. For an existing trial, use the
+[audited upgrade preserving cash and history](deploy/UPSTOX_GREEDY.md).
+The operator reported the original policy's first market session; the new
+policy still requires VM activation and observation.
 
 The existing manual/API **long-only CNC** engine is also in
 [`Phase2A_Execution`](Phase2A_Execution/README.md). Once it

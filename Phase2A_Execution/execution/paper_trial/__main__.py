@@ -26,6 +26,11 @@ def main(argv=None):
     snap.add_argument('destination')
     res = sub.add_parser('restore')
     res.add_argument('source')
+    migration = sub.add_parser('upgrade-greedy', help='Offline flat-account upgrade preserving cash, fills and dates')
+    migration.add_argument('--backup-directory', required=True)
+    migration.add_argument('--expected-implementation', required=True)
+    migration.add_argument('--release', required=True)
+    migration.add_argument('--check', action='store_true')
     args = parser.parse_args(argv)
     # This entry point has no --live option and refuses a live worker env even
     # for prepare. It cannot instantiate the legacy Kite execution path.
@@ -38,6 +43,11 @@ def main(argv=None):
         write_private(args.config, asdict(cfg), exclusive=True)
         print(dumps(dict(status='PREPARED_NOT_YET_MARKET_VERIFIED', config_hash=cfg.fingerprint,
                          sessions=cfg.sessions, instruments=cfg.instruments)))
+        return 0
+    if args.command == 'upgrade-greedy':
+        from .upgrade import upgrade
+        print(dumps(upgrade(args.config, args.db, args.backup_directory,
+                            args.expected_implementation, args.release, check=args.check)))
         return 0
     cfg = TrialConfig.load(args.config)
     if args.command == 'run':

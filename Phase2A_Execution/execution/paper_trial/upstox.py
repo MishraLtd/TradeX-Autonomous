@@ -17,7 +17,7 @@ from urllib.error import HTTPError
 from urllib.parse import urlsplit
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 
-from .config import D, IST, TrialConfig, stamp
+from .config import D, IST, TrialConfig, stamp, CURRENT_FEES
 
 API = 'https://api.upstox.com'
 ASSETS = 'https://assets.upstox.com/market-quote/instruments/exchange/'
@@ -161,7 +161,8 @@ def prepare_config(client, now=None, symbols=('SBIN', 'ITC', 'HDFCBANK')):
         if regular_session(client, day):
             sessions.append(day)
         if len(sessions) == 5:
-            return TrialConfig(instruments=instruments, sessions=sessions)
+            return TrialConfig(instruments=instruments, sessions=sessions, fee_model=CURRENT_FEES,
+                               exit_policy='NET_CASH', recycle_entries=True)
     raise DataError('FIVE_REGULAR_SESSIONS_NOT_FOUND')
 
 

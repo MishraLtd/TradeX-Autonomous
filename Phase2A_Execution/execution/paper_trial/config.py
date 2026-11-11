@@ -11,6 +11,8 @@ from zoneinfo import ZoneInfo
 
 IST = ZoneInfo('Asia/Kolkata')
 MODE = 'UPSTOX_DATA_LOCAL_PAPER'
+LEGACY_FEES = 'upstox-basic-nse-intraday-estimate-2026-11-10'
+CURRENT_FEES = 'upstox-basic-nse-intraday-estimate-2026-11-11'
 
 
 def implementation_fingerprint():
@@ -62,11 +64,23 @@ class TrialConfig:
     exit_response_timeout: float = 60
     slippage_bps: str = '5'
     depth_participation: str = '0.10'
-    fee_model: str = 'upstox-basic-nse-intraday-estimate-2026-11-10'
+    fee_model: str = LEGACY_FEES
+    # Legacy defaults keep old reports/config hashes reproducible. New trials
+    # and the explicit offline upgrade select NET_CASH with recycling enabled.
+    exit_policy: str = 'FIXED_PERCENT'
+    net_profit_inr: str = '1'
+    net_loss_inr: str = '2'
+    recycle_entries: bool = False
 
     def __post_init__(self):
-        if self.mode != MODE or self.fee_model != 'upstox-basic-nse-intraday-estimate-2026-11-10':
+        if self.mode != MODE or self.fee_model not in (LEGACY_FEES, CURRENT_FEES):
             raise ValueError('Only the reviewed local paper mode and fee estimate are supported')
+        if self.exit_policy not in ('FIXED_PERCENT', 'NET_CASH') or type(self.recycle_entries) is not bool:
+            raise ValueError('Invalid paper exit policy')
+        if self.recycle_entries and self.exit_policy != 'NET_CASH':
+            raise ValueError('Recycling requires the reviewed net-cash exit policy')
+        if D(self.net_profit_inr) <= 0 or D(self.net_loss_inr) <= 0:
+            raise ValueError('Positive whole-trade net thresholds required')
         if not 0 < D(self.per_trade_limit) <= D(self.initial_cash):
             raise ValueError('Invalid account or trade budget')
         if type(self.max_positions) is not int or not 1 <= self.max_positions <= 3:
@@ -112,7 +126,12 @@ class TrialConfig:
 
     @property
     def fingerprint(self):
-        return hashlib.sha256(dumps(asdict(self)).encode()).hexdigest()
+        values = asdict(self)
+        if (self.exit_policy == 'FIXED_PERCENT' and not self.recycle_entries
+                and self.net_profit_inr == '1' and self.net_loss_inr == '2'):
+            for key in ('exit_policy', 'net_profit_inr', 'net_loss_inr', 'recycle_entries'):
+                values.pop(key)
+        return hashlib.sha256(dumps(values).encode()).hexdigest()
 
     @classmethod
     def load(cls, path):

@@ -58,4 +58,4 @@ jobs:
           az bicep install --version v0.49.2
           az bicep build --file deploy/azure/main.bicep --outfile /tmp/tradex.json
           az bicep build --file deploy/azure/budget.bicep --outfile /tmp/budget.json
-          bash -n deploy/bootstrap.sh deploy/azure/preflight.sh deploy/azure/deploy.sh deploy/azure/start-upstox-paper.sh deploy/azure/store-upstox-token.sh
+          bash -n deploy/bootstrap.sh deploy/azure/preflight.sh deploy/azure/deploy.sh deploy/azure/start-upstox-paper.sh deploy/azure/store-upstox-token.sh deploy/azure/upgrade-upstox-greedy.sh
