@@ -77,6 +77,9 @@ def report(path, now=None):
         trade['estimated_exit_fee_components'] = {k: str(v) for k, v in breakdown(closing_side, turnover, model).items()}
         trade['estimated_total_fees'] = str(D(trade['entry_fees']) + fee(closing_side, turnover, model))
         trade['net_pnl_estimate'] = str(valuation.net_liquidation(trade))
+        trade['gross_pnl_estimate'] = str(valuation.gross_liquidation(trade))
+        trade['loss_basis'] = ('PRICE' if policy == 'NET_PROFIT_PRICE_STOP' else
+                               'NET' if policy == 'NET_CASH' else 'PRICE_PERCENT')
         trade['valuation_fresh'] = not trade['remaining'] or valuation.fresh(trade['symbol'], now)
         phase = phases.setdefault(policy + ':' + model, dict(exit_policy=policy, fee_model=model,
                                   trades=0, closed_trades=0, realized_net_closed=D(0)))
@@ -115,7 +118,7 @@ def report(path, now=None):
                      'Depth is a top-of-book observation, not guaranteed available liquidity.',
                      'One week of fixed entries tests operations, not a profitable strategy.',
                      'Net exit thresholds trigger requests; gaps, latency and partial fills can breach them.',
-                     'Round-trip costs alone can breach the net loss threshold and cause rapid recycling.',
+                     'The price-loss stop excludes fees/taxes; account P&L and the daily loss guard include them.',
                      'Policy changes split this experiment into distinct phases; compare them separately.',
                      'Stale or unresolved positions are never assigned invented closing fills.'])
     return result

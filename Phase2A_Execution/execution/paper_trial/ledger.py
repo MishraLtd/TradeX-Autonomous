@@ -118,6 +118,19 @@ class Ledger:
         return (D(trade['gross_pnl']) - D(trade['entry_fees']) - D(trade['exit_fees'])
                 + self.unrealized(trade))
 
+    def gross_liquidation(self, trade):
+        """Whole-trade price P&L before fees/taxes, including partial exits.
+
+        Uses simulated executable prices, so spread/slippage remain reflected
+        in prices. Fees are still deducted from account cash and net reports.
+        """
+        gross = D(trade['gross_pnl'])
+        quote = self.s['quotes'].get(trade['symbol'])
+        if trade['remaining'] and quote:
+            gross += ((self.exit_price(trade, quote) - D(trade['entry_price']))
+                      * trade['remaining'] * (1 if trade['direction'] == 'LONG' else -1))
+        return gross
+
     def available(self, exclude_slot=None):
         settled = D(self.cfg.initial_cash) + D(self.s['realized_gross']) - D(self.s['fees'])
         reserved = sum((D(t['entry_price']) * t['remaining'] for t in self.active()), D(0))
@@ -134,8 +147,10 @@ class Ledger:
         trade['exit_intent'] = dict(at=now, after=now + self.cfg.latency_seconds,
                                     quote_at=quote.get('at', 0), reason=reason)
         trade['exit_intent']['net_estimate_at_request'] = str(self.net_liquidation(trade))
+        trade['exit_intent']['gross_estimate_at_request'] = str(self.gross_liquidation(trade))
         self.event(now, 'EXIT_REQUEST', trade=trade['id'], reason=reason,
-                   net_estimate_at_request=trade['exit_intent']['net_estimate_at_request'])
+                   net_estimate_at_request=trade['exit_intent']['net_estimate_at_request'],
+                   gross_estimate_at_request=trade['exit_intent']['gross_estimate_at_request'])
 
     def _accept_quotes(self, quotes, now):
         accepted = {}
@@ -245,12 +260,17 @@ class Ledger:
             elif self.s['day_loss'].get(day) or self.s['halt']:
                 self.request_exit(trade, now, 'RISK_HALT')
             elif self.fresh(trade['symbol'], now):
-                if trade.get('exit_policy', 'FIXED_PERCENT') == 'NET_CASH':
+                policy = trade.get('exit_policy', 'FIXED_PERCENT')
+                if policy in ('NET_CASH', 'NET_PROFIT_PRICE_STOP'):
                     net = self.net_liquidation(trade)
-                    # Strict inequalities: exactly +1 or -2 does not trigger.
+                    price_stop = policy == 'NET_PROFIT_PRICE_STOP'
+                    loss_pnl = self.gross_liquidation(trade) if price_stop else net
+                    limit = self.cfg.price_loss_inr if price_stop else self.cfg.net_loss_inr
+                    # Profit uses net; the corrected stop uses price loss only.
+                    # Exactly +1 net or -2 on the selected loss basis does not trigger.
                     # An accepted exit is durable; its later fills may be worse.
-                    if net < -D(self.cfg.net_loss_inr):
-                        self.request_exit(trade, now, 'NET_LOSS_LIMIT')
+                    if loss_pnl < -D(limit):
+                        self.request_exit(trade, now, 'PRICE_LOSS_LIMIT' if price_stop else 'NET_LOSS_LIMIT')
                     elif net > D(self.cfg.net_profit_inr):
                         self.request_exit(trade, now, 'NET_PROFIT_TAKE')
                     continue
@@ -316,7 +336,7 @@ class Ledger:
                 continue
             parent = self.s['trades'].get(head['id']) or self.s['trades'][head['parent_trade']]
             if parent['remaining'] or parent.get('reason') not in (
-                    'NET_PROFIT_TAKE', 'NET_LOSS_LIMIT'):
+                    'NET_PROFIT_TAKE', 'NET_LOSS_LIMIT', 'PRICE_LOSS_LIMIT'):
                 continue
             symbol = parent['symbol']
             if (len(self.active()) + len(self.pending()) >= self.cfg.max_positions
@@ -470,7 +490,11 @@ def summarize(state, now=None):
     return dict(mode=cfg.mode, checked_at=now, status='DEGRADED' if codes else 'HEALTHY', codes=codes,
                 implementation_sha256=state['implementation_sha256'], release=state['release'],
                 config_hash=state['config_hash'], initial_cash=cfg.initial_cash,
-                exit_policy=cfg.exit_policy, net_profit_inr=cfg.net_profit_inr, net_loss_inr=cfg.net_loss_inr,
+                exit_policy=cfg.exit_policy, net_profit_inr=cfg.net_profit_inr,
+                net_loss_inr=cfg.net_loss_inr if cfg.exit_policy == 'NET_CASH' else None,
+                price_loss_inr=cfg.price_loss_inr if cfg.exit_policy == 'NET_PROFIT_PRICE_STOP' else None,
+                loss_basis=('PRICE' if cfg.exit_policy == 'NET_PROFIT_PRICE_STOP' else
+                            'NET' if cfg.exit_policy == 'NET_CASH' else 'PRICE_PERCENT'),
                 recycle_entries=cfg.recycle_entries, daily_loss_paused=bool(state['day_loss'].get(day)),
                 policy_history=state.get('policy_history', []),
                 available_cash=str(obj.available()), equity_estimate=str(settled + unrealized),

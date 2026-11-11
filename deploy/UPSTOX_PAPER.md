@@ -5,7 +5,7 @@ The trial entry point cannot submit, cancel or modify a broker order. It has no
 live-mode flag and does not use the Upstox trading SDK. The existing Kite CNC
 engine remains a separate mode; its live-account capabilities are not used here.
 
-Existing trials on the original fixed-percentage policy need the
+Existing trials on the original fixed-percentage or previous NET_CASH policy need the
 [cash-preserving greedy-policy upgrade](UPSTOX_GREEDY.md). A Git pull or service
 restart alone cannot change their frozen config and code fingerprint.
 
@@ -22,7 +22,7 @@ restart alone cannot change their frozen config and code fingerprint.
 | Session 1 / 3 / 5 directions | Buy–sell SBIN; sell–buy ITC; buy–sell HDFCBANK |
 | Session 2 / 4 directions | Sell–buy SBIN; buy–sell ITC; sell–buy HDFCBANK |
 | Profit exit | Whole-trade estimated liquidation net strictly above ₹1; no fixed price target |
-| Loss exit | Whole-trade estimated liquidation net strictly below −₹2, including both legs' costs |
+| Loss exit | Whole-trade estimated price P&L strictly below −₹2; fees/taxes are additional to this loss |
 | Re-entry | Same stock and scheduled direction after a complete profit/loss exit, until 15:00 IST; no daily trade-count cap |
 | Daily loss action | At ₹100 accumulated losing-trade/open-position loss, pause entries and request exits; winners do not offset this gate |
 | Square-off | Request all remaining exits at 15:00 IST; unresolved at 15:10 fails the trial and blocks later entries |
@@ -147,7 +147,7 @@ sudo systemctl status tradex-maintain@backup.service --no-pager
 Require a fresh heartbeat, `market.connected=true`, `market.normal=true`,
 `market.calendar_valid=true`, increasing `live_quote_updates` and quote ages
 below 15 seconds. The first slot should create a paper trade with
-`exit_policy=NET_CASH` and null price target/stop;
+`exit_policy=NET_PROFIT_PRICE_STOP`, `loss_basis=PRICE` and null price target/stop;
 it must not appear in Upstox's order book. Status includes only this local
 simulator's trades, not a claim to have inspected the real broker account.
 

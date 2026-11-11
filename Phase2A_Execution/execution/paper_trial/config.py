@@ -66,21 +66,22 @@ class TrialConfig:
     depth_participation: str = '0.10'
     fee_model: str = LEGACY_FEES
     # Legacy defaults keep old reports/config hashes reproducible. New trials
-    # and the explicit offline upgrade select NET_CASH with recycling enabled.
+    # and upgrades select NET_PROFIT_PRICE_STOP with recycling enabled.
     exit_policy: str = 'FIXED_PERCENT'
     net_profit_inr: str = '1'
     net_loss_inr: str = '2'
     recycle_entries: bool = False
+    price_loss_inr: str = '2'
 
     def __post_init__(self):
         if self.mode != MODE or self.fee_model not in (LEGACY_FEES, CURRENT_FEES):
             raise ValueError('Only the reviewed local paper mode and fee estimate are supported')
-        if self.exit_policy not in ('FIXED_PERCENT', 'NET_CASH') or type(self.recycle_entries) is not bool:
+        if self.exit_policy not in ('FIXED_PERCENT', 'NET_CASH', 'NET_PROFIT_PRICE_STOP') or type(self.recycle_entries) is not bool:
             raise ValueError('Invalid paper exit policy')
-        if self.recycle_entries and self.exit_policy != 'NET_CASH':
+        if self.recycle_entries and self.exit_policy == 'FIXED_PERCENT':
             raise ValueError('Recycling requires the reviewed net-cash exit policy')
-        if D(self.net_profit_inr) <= 0 or D(self.net_loss_inr) <= 0:
-            raise ValueError('Positive whole-trade net thresholds required')
+        if any(D(v) <= 0 for v in (self.net_profit_inr, self.net_loss_inr, self.price_loss_inr)):
+            raise ValueError('Positive whole-trade profit and loss thresholds required')
         if not 0 < D(self.per_trade_limit) <= D(self.initial_cash):
             raise ValueError('Invalid account or trade budget')
         if type(self.max_positions) is not int or not 1 <= self.max_positions <= 3:
@@ -127,6 +128,9 @@ class TrialConfig:
     @property
     def fingerprint(self):
         values = asdict(self)
+        # Preserve both previous fixed-percent and NET_CASH config hashes.
+        if self.exit_policy != 'NET_PROFIT_PRICE_STOP' and self.price_loss_inr == '2':
+            values.pop('price_loss_inr')
         if (self.exit_policy == 'FIXED_PERCENT' and not self.recycle_entries
                 and self.net_profit_inr == '1' and self.net_loss_inr == '2'):
             for key in ('exit_policy', 'net_profit_inr', 'net_loss_inr', 'recycle_entries'):

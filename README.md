@@ -4,7 +4,8 @@ Current focus: **five-session intraday paper trading on real Upstox data**,
 with ₹4,000 virtual cash, a ₹2,000 entry cap, at most three positions, fixed
 scheduled first long/short entries, net-cash exits and repeated entries until
 the 15:00 IST intraday cutoff. Take profit above ₹1 estimated net or exit below
-−₹2 estimated net per whole trade, including costs; no daily trade-count cap.
+−₹2 estimated price P&L per whole trade, with fees/taxes additional to that loss;
+profit must still exceed ₹1 after all costs. No daily trade-count cap.
 The ₹100 daily loss guard remains active. These are triggers, not guaranteed fills.
 See the [Upstox paper setup and VM runbook](deploy/UPSTOX_PAPER.md). The trial
 uses a read-only Analytics Token and cannot place broker orders. It has its

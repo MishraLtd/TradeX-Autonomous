@@ -240,6 +240,108 @@ class GreedyTest(unittest.TestCase):
         self.assertEqual(r['policy_results'][0]['exit_policy'], 'NET_CASH')
 
 
+class PriceStopTest(unittest.TestCase):
+    """Corrected policy: fees are additional to the INR 2 whole-trade price loss."""
+    tearDown = GreedyTest.tearDown
+    reset = GreedyTest.reset
+    step = GreedyTest.step
+    enter = GreedyTest.enter
+
+    def setUp(self):
+        GreedyTest.setUp(self)
+        self.reset(exit_policy='NET_PROFIT_PRICE_STOP')
+
+    def test_costs_exceeding_two_do_not_trigger_price_stop(self):
+        self.reset(per_trade_limit='2000', slippage_bps='0')
+        trade, at = self.enter()
+        self.step(at + 1)
+        self.assertLess(self.book.net_liquidation(trade), -2)
+        self.assertGreater(self.book.gross_liquidation(trade), -2)
+        self.assertIsNone(trade['exit_intent'])
+
+    def test_long_234_example_costs_are_added_after_two_rupee_price_loss(self):
+        self.reset(per_trade_limit='300', slippage_bps='0')
+        at = stamp(self.day, '09:30')
+        self.step(at, 233.95)
+        self.step(at + .3, 233.95)
+        trade = self.book.active()[0]
+        self.assertEqual(D(trade['entry_price']), 234)
+        self.assertEqual(trade['quantity'], 1)
+        self.step(at + 1, 232)
+        self.assertEqual(self.book.gross_liquidation(trade), -2)
+        self.assertLess(self.book.net_liquidation(trade), -2)
+        self.assertIsNone(trade['exit_intent'])  # strictly more than INR 2
+        self.step(at + 1.3, 231.95)
+        self.assertEqual(trade['exit_intent']['reason'], 'PRICE_LOSS_LIMIT')
+        self.step(at + 1.6, 231.95)
+        cost = D(trade['entry_fees']) + D(trade['exit_fees'])
+        self.assertEqual(self.book.net_liquidation(trade), -D('2.05') - cost)
+        self.step(at + 1.9, 231.95)
+        self.assertEqual(self.book.active()[0]['parent_trade'], trade['id'])
+        self.assertEqual(self.book.active()[0]['direction'], 'LONG')
+
+    def test_short_price_stop_excludes_buyback_taxes_and_has_strict_boundary(self):
+        self.reset(slippage_bps='0')
+        trade, at = self.enter(DATES[1])
+        self.step(at + 1, 101.95)  # BUY ask 102, against SELL entry 100
+        self.assertEqual(self.book.gross_liquidation(trade), -2)
+        self.assertLess(self.book.net_liquidation(trade), -2)
+        self.assertIsNone(trade['exit_intent'])
+        self.step(at + 1.3, 102)
+        self.assertEqual(trade['exit_intent']['reason'], 'PRICE_LOSS_LIMIT')
+        self.step(at + 1.6, 102)
+        self.step(at + 1.9, 102)
+        self.assertEqual(self.book.active()[0]['direction'], 'SHORT')
+
+    def test_one_rupee_profit_still_requires_all_costs_covered(self):
+        instruments = {k: {**v, 'tick': '0.01'} for k, v in self.cfg.instruments.items()}
+        self.reset(slippage_bps='0', instruments=instruments)
+        trade, at = self.enter()
+        self.step(at + 1, 101.10)
+        self.assertGreater(self.book.gross_liquidation(trade), 1)
+        self.assertLess(self.book.net_liquidation(trade), 1)
+        self.assertIsNone(trade['exit_intent'])
+        self.step(at + 1.3, 101.32)
+        self.assertEqual(self.book.net_liquidation(trade), 1)
+        self.assertIsNone(trade['exit_intent'])
+        self.step(at + 1.6, 101.33)
+        self.assertEqual(trade['exit_intent']['reason'], 'NET_PROFIT_TAKE')
+
+    def test_two_rupee_stop_is_per_position_not_per_share(self):
+        self.reset(per_trade_limit='350')
+        trade, at = self.enter()
+        self.assertEqual(trade['quantity'], 3)
+        self.step(at + 1, 99.55)
+        self.assertLess(self.book.net_liquidation(trade), -2)
+        self.assertGreater(self.book.gross_liquidation(trade), -2)
+        self.assertIsNone(trade['exit_intent'])
+        self.step(at + 1.3, 99.40)
+        self.assertEqual(trade['exit_intent']['reason'], 'PRICE_LOSS_LIMIT')
+
+    def test_partial_exits_include_realized_gross_and_report_costs_separately(self):
+        self.reset(per_trade_limit='500')
+        trade, at = self.enter()
+        self.step(at + 1, 99.5, quantity=10)
+        self.step(at + 1.3, 99.5, quantity=10)
+        self.assertEqual(trade['remaining'], 3)
+        self.assertEqual(self.book.gross_liquidation(trade), D('-2.80'))
+        r = report(self.path, at + 1.3)
+        self.assertEqual(r['loss_basis'], 'PRICE')
+        self.assertEqual(r['price_loss_inr'], '2')
+        self.assertIsNone(r['net_loss_inr'])
+        t = r['trades'][0]
+        self.assertEqual(D(t['net_pnl_estimate']), D(t['gross_pnl_estimate']) - D(t['estimated_total_fees']))
+        self.assertFalse(self.book.pending())
+
+    def test_daily_guard_still_counts_costs(self):
+        self.reset(per_trade_limit='2000', daily_loss_limit='4', slippage_bps='0')
+        trade, at = self.enter()
+        self.step(at + 1)
+        self.assertGreater(self.book.gross_liquidation(trade), -2)
+        self.assertTrue(self.book.s['day_loss'][self.day])
+        self.assertEqual(trade['exit_intent']['reason'], 'RISK_HALT')
+
+
 class FeeBreakdownTest(unittest.TestCase):
     def test_published_current_components_both_sides_and_rounding(self):
         buy, sell = breakdown('BUY', '100000', CURRENT_FEES), breakdown('SELL', '100000', CURRENT_FEES)
@@ -274,7 +376,7 @@ class UpgradeTest(unittest.TestCase):
             self.book.step(t, market(t), quotes(t, {'SBIN': price}))
         # Simulate the exact legacy JSON shape (without new optional fields).
         old = asdict(self.cfg)
-        for key in ('exit_policy', 'net_profit_inr', 'net_loss_inr', 'recycle_entries'):
+        for key in ('exit_policy', 'net_profit_inr', 'net_loss_inr', 'recycle_entries', 'price_loss_inr'):
             old.pop(key)
         write_private(self.config_path, old)
         with self.book.atomic():
@@ -306,7 +408,7 @@ class UpgradeTest(unittest.TestCase):
                 self.assertEqual(book.s[field], self.original[field])
             self.assertEqual(cfg.sessions, self.cfg.sessions)
             self.assertEqual(result['cash_preserved'], checked['cash_preserved'])
-            self.assertEqual(cfg.exit_policy, 'NET_CASH')
+            self.assertEqual(cfg.exit_policy, 'NET_PROFIT_PRICE_STOP')
             self.assertEqual(cfg.fee_model, CURRENT_FEES)
             self.assertEqual(read_state(self.base / 'backup/trial.sqlite'), self.original)
             r = report(self.path, self.now)
@@ -342,7 +444,7 @@ class UpgradeTest(unittest.TestCase):
             book.step(at + .3, market(at + .3), quotes(at + .3))
             trade = book.s['trades'][DATES[1] + ':0']
             self.assertEqual(trade['direction'], 'SHORT')
-            self.assertEqual(trade['exit_policy'], 'NET_CASH')
+            self.assertEqual(trade['exit_policy'], 'NET_PROFIT_PRICE_STOP')
             r = report(self.path, at + .3)
             self.assertEqual(len(r['policy_results']), 2)
             self.assertEqual(len(r['fills']), 3)
@@ -365,6 +467,27 @@ class UpgradeTest(unittest.TestCase):
         self.assertEqual(read_state(self.path), self.original)
         self.assertEqual(TrialConfig.load(self.config_path).fingerprint, self.cfg.fingerprint)
         self.assertEqual(read_state(self.base / 'backup/trial.sqlite'), self.original)
+
+    def test_previous_net_cash_release_can_upgrade_without_losing_policy_history(self):
+        import hashlib
+        import sqlite3
+        from execution.paper_trial.config import dumps
+        old = asdict(replace(self.cfg, exit_policy='NET_CASH', recycle_entries=True, fee_model=CURRENT_FEES))
+        old.pop('price_loss_inr')  # exact configuration shape of release 41ce136
+        expected_hash = hashlib.sha256(dumps(old).encode()).hexdigest()
+        self.assertEqual(TrialConfig(**old).fingerprint, expected_hash)
+        state = json.loads(json.dumps(self.original))
+        prior_history = [{'at': self.now - 100, 'from_release': 'original', 'to_release': 'net-cash'}]
+        state.update(config=old, config_hash=expected_hash, policy_history=prior_history)
+        with sqlite3.connect(self.path) as db:
+            db.execute('UPDATE trial SET value=?', (json.dumps(state),))
+        write_private(self.config_path, old)
+        self.migrate()
+        after = read_state(self.path)
+        self.assertEqual(after['policy_history'][:-1], prior_history)
+        self.assertEqual(after['trades'], state['trades'])
+        self.assertEqual(after['fees'], state['fees'])
+        self.assertEqual(after['config']['exit_policy'], 'NET_PROFIT_PRICE_STOP')
 
     def test_open_position_pending_entry_and_source_mismatch_refused(self):
         import sqlite3

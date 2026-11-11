@@ -33,8 +33,8 @@ def upgrade(config_path, db_path, backup_dir, expected_implementation, release, 
             raise ValueError('Source config/ledger mismatch; inspect the preserved backup before retrying')
         if state['implementation_sha256'] != expected_implementation:
             raise ValueError('Source code fingerprint does not match the running trial')
-        if cfg.exit_policy != 'FIXED_PERCENT' or cfg.recycle_entries or state.get('policy_history'):
-            raise ValueError('This one-time migration requires the original fixed-exit trial')
+        if cfg.exit_policy not in ('FIXED_PERCENT', 'NET_CASH'):
+            raise ValueError('Migration requires a fixed-exit or previous NET_CASH trial; corrected policy is already selected')
         if state['halt'] or any(t['remaining'] or t['state'] != 'CLOSED' for t in state['trades'].values()):
             raise ValueError('Upgrade requires a flat account with no unresolved incident')
         if any(s['state'] == 'PENDING' for s in state['slots'].values()):
@@ -43,13 +43,14 @@ def upgrade(config_path, db_path, backup_dir, expected_implementation, release, 
             raise ValueError('Upgrade outside the planned session: before 09:10 or after 15:15 IST')
         if now >= stamp(cfg.sessions[-1], cfg.hard_close_time):
             raise ValueError('The trial has ended; preserve its report instead of extending its dates')
-        new_cfg = replace(cfg, exit_policy='NET_CASH', net_profit_inr='1', net_loss_inr='2',
+        new_cfg = replace(cfg, exit_policy='NET_PROFIT_PRICE_STOP', net_profit_inr='1', price_loss_inr='2',
                           recycle_entries=True, fee_model=CURRENT_FEES)
         cash = D(cfg.initial_cash) + D(state['realized_gross']) - D(state['fees'])
         result = dict(status='UPGRADE_CHECKED' if check else 'POLICY_UPGRADED',
                       cash_preserved=str(cash), trades_preserved=len(state['trades']),
                       sessions_preserved=cfg.sessions, config_hash=new_cfg.fingerprint,
-                      exit_policy=new_cfg.exit_policy, release=release, backup=str(backup_dir))
+                      exit_policy=new_cfg.exit_policy, loss_basis='PRICE', price_loss_inr=new_cfg.price_loss_inr,
+                      release=release, backup=str(backup_dir))
         if check:
             return result
         backup_dir.mkdir(mode=0o700, parents=True, exist_ok=False)
@@ -76,7 +77,7 @@ def upgrade(config_path, db_path, backup_dir, expected_implementation, release, 
             try:
                 state.update(schema=2, config=asdict(new_cfg), config_hash=new_cfg.fingerprint,
                              implementation_sha256=implementation_fingerprint(), release=release,
-                             policy_history=[receipt])
+                             policy_history=state.get('policy_history', []) + [receipt])
                 db.execute('UPDATE trial SET value=? WHERE id=1', (dumps(state),))
                 db.execute('INSERT INTO events(at,kind,data) VALUES (?,?,?)', (now, 'POLICY_UPGRADE', dumps(receipt)))
                 write_config(asdict(new_cfg))

@@ -162,7 +162,7 @@ def prepare_config(client, now=None, symbols=('SBIN', 'ITC', 'HDFCBANK')):
             sessions.append(day)
         if len(sessions) == 5:
             return TrialConfig(instruments=instruments, sessions=sessions, fee_model=CURRENT_FEES,
-                               exit_policy='NET_CASH', recycle_entries=True)
+                               exit_policy='NET_PROFIT_PRICE_STOP', recycle_entries=True)
     raise DataError('FIVE_REGULAR_SESSIONS_NOT_FOUND')
 
 
