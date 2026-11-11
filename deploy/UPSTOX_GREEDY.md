@@ -92,8 +92,10 @@ git checkout --detach "$TRADEX_RELEASE"
 sudo bash deploy/azure/upgrade-upstox-greedy.sh "$TRADEX_RELEASE"
 ```
 
-This upgrade accepts either the original fixed-exit release or `41ce136`'s
-NET_CASH release. It appends to any existing policy history. Use a new checkout;
+This upgrade accepts the original fixed-exit release, `41ce136`'s NET_CASH
+release, or a corrected-policy release needing a code/timer update. Policy
+changes append `policy_history`; a code-only update appends `release_history`
+without adding a false policy phase. Use a new checkout;
 do not modify `/opt/tradex/current` or reuse the original
 fresh-trial installer. The upgrade:
 

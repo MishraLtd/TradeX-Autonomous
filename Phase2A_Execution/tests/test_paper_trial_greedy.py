@@ -489,6 +489,29 @@ class UpgradeTest(unittest.TestCase):
         self.assertEqual(after['fees'], state['fees'])
         self.assertEqual(after['config']['exit_policy'], 'NET_PROFIT_PRICE_STOP')
 
+    def test_corrected_policy_code_only_upgrade_preserves_policy_history(self):
+        import hashlib
+        import sqlite3
+        from execution.paper_trial.config import dumps
+        corrected = asdict(replace(self.cfg, exit_policy='NET_PROFIT_PRICE_STOP',
+                                   recycle_entries=True, fee_model=CURRENT_FEES))
+        corrected_hash = hashlib.sha256(dumps(corrected).encode()).hexdigest()
+        state = json.loads(json.dumps(self.original))
+        policy_history = [{'kind': 'POLICY_UPGRADE', 'at': self.now - 100}]
+        state.update(config=corrected, config_hash=corrected_hash, policy_history=policy_history)
+        with sqlite3.connect(self.path) as db:
+            db.execute('UPDATE trial SET value=?', (json.dumps(state),))
+        write_private(self.config_path, corrected)
+        result = self.migrate()
+        after = read_state(self.path)
+        self.assertEqual(result['status'], 'RELEASE_UPGRADED')
+        self.assertEqual(after['policy_history'], policy_history)
+        self.assertEqual(len(after['release_history']), 1)
+        self.assertEqual(after['release_history'][0]['kind'], 'RELEASE_UPGRADE')
+        self.assertEqual(after['trades'], state['trades'])
+        self.assertEqual(after['fees'], state['fees'])
+        self.assertEqual(after['config_hash'], corrected_hash)
+
     def test_open_position_pending_entry_and_source_mismatch_refused(self):
         import sqlite3
         for change in ('open', 'pending', 'source', 'halt'):

@@ -497,6 +497,7 @@ def summarize(state, now=None):
                             'NET' if cfg.exit_policy == 'NET_CASH' else 'PRICE_PERCENT'),
                 recycle_entries=cfg.recycle_entries, daily_loss_paused=bool(state['day_loss'].get(day)),
                 policy_history=state.get('policy_history', []),
+                release_history=state.get('release_history', []),
                 available_cash=str(obj.available()), equity_estimate=str(settled + unrealized),
                 reserved_entry_notional=str(sum((D(t['entry_price']) * t['remaining'] for t in open_trades), D(0))),
                 gross_realized=state['realized_gross'], estimated_fees=state['fees'],
