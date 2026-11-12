@@ -1,5 +1,9 @@
 # Five-session Upstox intraday paper trial
 
+Latest entry/exit rules and the required VM upgrade are in
+[Trend entries and timed recovery](TREND_RECOVERY.md). That policy supersedes
+the random-entry/price-stop settings below; these remain historical context.
+
 The latest policy uses [eight approved stocks](UNIVERSE.md) and
 [random stock rotation](ROTATION.md), with no per-stock entry times. Existing
 trials require the explicit `--random-rotation` upgrade option, which also

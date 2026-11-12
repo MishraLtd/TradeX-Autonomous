@@ -476,6 +476,7 @@ class UpgradeTest(unittest.TestCase):
         old.pop('price_loss_inr')  # exact configuration shape of release 41ce136
         old.pop('universe_effective_date')
         old.pop('entry_policy')
+        old.pop('trend_settings')
         expected_hash = hashlib.sha256(dumps(old).encode()).hexdigest()
         self.assertEqual(TrialConfig(**old).fingerprint, expected_hash)
         state = json.loads(json.dumps(self.original))
@@ -499,6 +500,7 @@ class UpgradeTest(unittest.TestCase):
                                    recycle_entries=True, fee_model=CURRENT_FEES))
         corrected.pop('universe_effective_date')
         corrected.pop('entry_policy')
+        corrected.pop('trend_settings')
         corrected_hash = hashlib.sha256(dumps(corrected).encode()).hexdigest()
         state = json.loads(json.dumps(self.original))
         policy_history = [{'kind': 'POLICY_UPGRADE', 'at': self.now - 100}]

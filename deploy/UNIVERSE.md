@@ -1,5 +1,9 @@
 # Eight-stock paper universe
 
+For the current entry/exit policy, use the
+[trend and recovery upgrade](TREND_RECOVERY.md). The selection and upgrade
+instructions below describe the earlier random-rotation release.
+
 The approved list adds five stocks to the existing three. Upstox NSE instrument
 and MIS files were checked on 12 November 2026; the installer resolves them
 again and refuses the change if any is missing, ambiguous or not MIS eligible.

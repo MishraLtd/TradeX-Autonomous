@@ -79,7 +79,7 @@ def report(path, now=None):
         trade['net_pnl_estimate'] = str(valuation.net_liquidation(trade))
         trade['gross_pnl_estimate'] = str(valuation.gross_liquidation(trade))
         trade['loss_basis'] = ('PRICE' if policy == 'NET_PROFIT_PRICE_STOP' else
-                               'NET' if policy == 'NET_CASH' else 'PRICE_PERCENT')
+                               'NET' if policy in ('NET_CASH', 'NET_RECOVERY') else 'PRICE_PERCENT')
         trade['valuation_fresh'] = not trade['remaining'] or valuation.fresh(trade['symbol'], now)
         entry_policy = trade.get('entry_policy', 'FIXED_SCHEDULE')
         phase = phases.setdefault(entry_policy + ':' + policy + ':' + model,

@@ -169,9 +169,10 @@ def prepare_config(client, now=None, symbols=APPROVED_SYMBOLS):
         if regular_session(client, day):
             sessions.append(day)
         if len(sessions) == 5:
+            from .trend import SETTINGS
             return TrialConfig(instruments=instruments, sessions=sessions, entry_times=(),
-                               entry_policy='RANDOM_ROTATION', fee_model=CURRENT_FEES,
-                               exit_policy='NET_PROFIT_PRICE_STOP', recycle_entries=True)
+                               entry_policy='TREND_ROTATION', trend_settings=dict(SETTINGS), fee_model=CURRENT_FEES,
+                               net_profit_inr='5', exit_policy='NET_RECOVERY', recycle_entries=True)
     raise DataError('FIVE_REGULAR_SESSIONS_NOT_FOUND')
 
 

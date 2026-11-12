@@ -74,11 +74,12 @@ class TrialConfig:
     price_loss_inr: str = '2'
     universe_effective_date: str | None = None
     entry_policy: str = 'FIXED_SCHEDULE'
+    trend_settings: dict | None = None
 
     def __post_init__(self):
         if self.mode != MODE or self.fee_model not in (LEGACY_FEES, CURRENT_FEES):
             raise ValueError('Only the reviewed local paper mode and fee estimate are supported')
-        if self.exit_policy not in ('FIXED_PERCENT', 'NET_CASH', 'NET_PROFIT_PRICE_STOP') or type(self.recycle_entries) is not bool:
+        if self.exit_policy not in ('FIXED_PERCENT', 'NET_CASH', 'NET_PROFIT_PRICE_STOP', 'NET_RECOVERY') or type(self.recycle_entries) is not bool:
             raise ValueError('Invalid paper exit policy')
         if self.recycle_entries and self.exit_policy == 'FIXED_PERCENT':
             raise ValueError('Recycling requires the reviewed net-cash exit policy')
@@ -88,8 +89,13 @@ class TrialConfig:
             raise ValueError('Invalid account or trade budget')
         if type(self.max_positions) is not int or not 1 <= self.max_positions <= 3:
             raise ValueError('At most three paper positions')
-        if self.entry_policy not in ('FIXED_SCHEDULE', 'RANDOM_ROTATION'):
+        if self.entry_policy not in ('FIXED_SCHEDULE', 'RANDOM_ROTATION', 'TREND_ROTATION'):
             raise ValueError('Unknown entry policy')
+        if self.entry_policy == 'TREND_ROTATION' or self.exit_policy == 'NET_RECOVERY' or self.trend_settings is not None:
+            from .trend import SETTINGS
+            if (self.entry_policy != 'TREND_ROTATION' or self.exit_policy != 'NET_RECOVERY'
+                    or self.trend_settings != SETTINGS or self.entry_times or D(self.net_profit_inr) != 5):
+                raise ValueError('Trend recovery requires the complete reviewed policy settings')
         if self.entry_policy == 'RANDOM_ROTATION' and (self.entry_times or self.exit_policy != 'NET_PROFIT_PRICE_STOP'):
             raise ValueError('Rotation requires no stock entry times and the corrected exit policy')
         if not 3 <= len(self.instruments) <= 8 or (self.entry_policy == 'FIXED_SCHEDULE' and len(self.entry_times) != len(self.instruments)):
@@ -136,6 +142,8 @@ class TrialConfig:
     @property
     def fingerprint(self):
         values = asdict(self)
+        if self.trend_settings is None:
+            values.pop('trend_settings')
         if self.entry_policy == 'FIXED_SCHEDULE':
             values.pop('entry_policy')
         if self.universe_effective_date is None:

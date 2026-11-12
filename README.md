@@ -1,5 +1,15 @@
 # TradeX Autonomous
 
+Latest policy: [trend entries and timed recovery](deploy/TREND_RECOVERY.md).
+Entries start from 09:30 IST with confirmed five-minute price direction and
+four-minute cooldowns after each close. Take profit above INR 5 net; a net loss
+below INR -5 starts a one-to-two-hour recovery window instead of an immediate
+price stop. The 15:00 square-off and INR 100 daily risk guard override holds.
+Existing trials need the explicit `--trend-recovery` VM upgrade. All trades
+remain local paper simulations; prior balances and history are preserved.
+
+The previous policy, retained for historical reports, was:
+
 Current focus: **five-session intraday paper trading on real Upstox data**,
 with ₹4,000 virtual cash, a ₹2,000 entry cap, one focused stock at a time,
 uniform random stock selection, net-cash exits and repeated entries until

@@ -181,7 +181,7 @@ class RotationTest(unittest.TestCase):
                 patch('execution.paper_trial.upstox.regular_session',
                       side_effect=lambda client, day: day in DATES + ['2026-11-18']):
             cfg = prepare_config(Mock(), now=stamp(DATES[0], '09:10'))
-        self.assertEqual(cfg.entry_policy, 'RANDOM_ROTATION')
+        self.assertEqual(cfg.entry_policy, 'TREND_ROTATION')
         self.assertFalse(cfg.entry_times)
         self.assertEqual(cfg.sessions, DATES[1:] + ['2026-11-18'])
 

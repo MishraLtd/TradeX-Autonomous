@@ -1,5 +1,8 @@
 # Random stock rotation: local paper only
 
+Superseded by [trend entries and timed recovery](TREND_RECOVERY.md).
+This document describes the previous deployed policy.
+
 There are no stock-specific entry times. From 09:15 IST, after calendar and
 market-open verification, draw one stock uniformly from the approved stocks
 with a fresh live quote, an acceptable spread, displayed liquidity and enough
