@@ -242,4 +242,14 @@ class TrendTest(unittest.TestCase):
             self.assertEqual(after[key], before[key])
         self.assertEqual(after['rotation'], {})
         self.assertEqual(TrialConfig.load(cfgpath).net_profit_inr, '5')
+        with patch('execution.paper_trial.upstox.expanded_instruments', return_value=resolved):
+            result = upgrade(cfgpath, path, Path(self.tmp.name) / 'portfolio-backup',
+                             after['implementation_sha256'], 'c' * 40,
+                             now=stamp(DATES[0], '16:01'), profitup=True)
+        self.assertEqual(result['capital_adjustment'], '6000')
+        self.assertEqual(result['cash_after'], '9900.89')
+        portfolio = read_state(path)
+        self.assertEqual(portfolio['day_loss'], before['day_loss'])
+        self.assertEqual(portfolio['fees'], before['fees'])
+        self.assertEqual(portfolio['config']['entry_policy'], 'TREND_PORTFOLIO')
         self.book = Ledger(self.path, self.cfg)

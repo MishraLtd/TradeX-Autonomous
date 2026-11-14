@@ -171,8 +171,9 @@ def prepare_config(client, now=None, symbols=APPROVED_SYMBOLS):
         if len(sessions) == 5:
             from .trend import SETTINGS
             return TrialConfig(instruments=instruments, sessions=sessions, entry_times=(),
-                               entry_policy='TREND_ROTATION', trend_settings=dict(SETTINGS), fee_model=CURRENT_FEES,
-                               net_profit_inr='5', exit_policy='NET_RECOVERY', recycle_entries=True)
+                               entry_policy='TREND_PORTFOLIO', trend_settings=dict(SETTINGS), fee_model=CURRENT_FEES,
+                               initial_cash='10000', per_trade_limit=None, net_profit_inr='10',
+                               exit_policy='NET_RECOVERY', recycle_entries=True)
     raise DataError('FIVE_REGULAR_SESSIONS_NOT_FOUND')
 
 

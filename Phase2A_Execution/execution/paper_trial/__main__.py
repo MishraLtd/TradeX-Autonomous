@@ -35,6 +35,7 @@ def main(argv=None):
     migration.add_argument('--expand-universe', action='store_true')
     migration.add_argument('--random-rotation', action='store_true')
     migration.add_argument('--trend-recovery', action='store_true')
+    migration.add_argument('--profitup', action='store_true')
     args = parser.parse_args(argv)
     # This entry point has no --live option and refuses a live worker env even
     # for prepare. It cannot instantiate the legacy Kite execution path.
@@ -53,7 +54,7 @@ def main(argv=None):
         print(dumps(upgrade(args.config, args.db, args.backup_directory,
                             args.expected_implementation, args.release, check=args.check,
                             expand_universe=args.expand_universe, random_rotation=args.random_rotation,
-                            trend_recovery=args.trend_recovery)))
+                            trend_recovery=args.trend_recovery, profitup=args.profitup)))
         return 0
     cfg = TrialConfig.load(args.config)
     if args.command == 'run':
