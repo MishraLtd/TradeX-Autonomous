@@ -1,5 +1,13 @@
 # Trend entries and timed recovery: paper trial
 
+On the `profitup` branch fresh trials use `TREND_PORTFOLIO`. The net profit
+trigger is strictly above ₹10 per position, after both sides' estimated costs.
+Up to three distinct positions share available cash, with no fixed rupee cap
+per trade. A single eligible stock can use the full free balance. The recovery
+trigger stays below −₹5 net. For an existing trial, clone this branch, pin the
+reviewed commit and pass `--profitup` in the VM procedure below. The remaining
+single-position examples describe the previous `TREND_ROTATION` policy.
+
 This policy replaces the fixed direction formula and immediate price stop.
 The operator selected a minimum one-hour recovery wait and a compulsory exit
 at two hours. These are experimental rules, not evidence of profitable signals.

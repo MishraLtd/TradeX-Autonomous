@@ -213,7 +213,7 @@ class Ledger:
                            and stamp(day, '09:15') <= now < stamp(day, self.cfg.hard_close_time))
             if self.s['halt'] == 'RESTORED_TRIAL_REQUIRES_REVIEW':
                 allowed = False
-            if self.cfg.entry_policy == 'TREND_ROTATION' and allowed:
+            if self.cfg.uses_trend and allowed:
                 from .trend import observe
                 observe(self.s, fresh, now, day)
             if planned_today and now < stamp(day, self.cfg.hard_close_time):
@@ -231,7 +231,10 @@ class Ledger:
                     if trade['day'] == day:
                         self._fill_exit(trade, fresh, liquidity, now)
             if planned_today:
-                if self.cfg.entry_policy in ('RANDOM_ROTATION', 'TREND_ROTATION'):
+                if self.cfg.entry_policy == 'TREND_PORTFOLIO':
+                    for seat in range(self.cfg.max_positions):
+                        self._rotate(now, day, allowed, seat=str(seat))
+                elif self.cfg.entry_policy in ('RANDOM_ROTATION', 'TREND_ROTATION'):
                     self._rotate(now, day, allowed)
                 else:
                     self._schedule(now, day, allowed)
@@ -312,11 +315,18 @@ class Ledger:
         if since is not None and now - since >= settings['recovery_max_seconds']:
             self.request_exit(trade, now, 'RECOVERY_TIMEOUT')
 
-    def _rotate(self, now, day, allowed):
-        """One focused stock; persist draws and completed-trade rolling windows."""
-        if self.active() or self.pending():
-            return
-        rotation = self.s.setdefault('rotation', {})
+    def _rotate(self, now, day, allowed, seat=None):
+        """Each position has its own focused stock, cooldown and rolling results."""
+        occupied = self.active() + self.pending()
+        if seat is None:
+            if occupied:
+                return
+            rotation = self.s.setdefault('rotation', {})
+        else:
+            positions = self.s.setdefault('portfolio', {})
+            rotation = positions.setdefault(seat, {})
+            if any(row['id'] == rotation.get('head') for row in occupied):
+                return
         if rotation.get('day') != day:
             if not allowed:
                 return
@@ -328,7 +338,7 @@ class Ledger:
         if last and last['state'] == 'CLOSED' and rotation['processed'] != last['id']:
             net = D(last['gross_pnl']) - D(last['entry_fees']) - D(last['exit_fees'])
             rotation['processed'] = last['id']
-            if self.cfg.entry_policy == 'TREND_ROTATION':
+            if self.cfg.uses_trend:
                 rotation['cooldown_until'] = last['closed_at'] + self.cfg.trend_settings['cooldown_seconds']
                 self.event(now, 'ENTRY_COOLDOWN', symbol=last['symbol'], until=rotation['cooldown_until'])
             rotation['window'] = (rotation['window'] + [str(net)])[-3:]
@@ -347,18 +357,33 @@ class Ledger:
         if (not allowed or self.s['halt'] or self.s['day_loss'].get(day)
                 or now >= stamp(day, self.cfg.flatten_time)):
             return
-        trending = self.cfg.entry_policy == 'TREND_ROTATION'
+        trending = self.cfg.uses_trend
         entry_cutoff = stamp(day, self.cfg.flatten_time)
         if trending:
             entry_cutoff -= self.cfg.trend_settings['minimum_hold_seconds']
             if (now < stamp(day, self.cfg.trend_settings['first_entry'])
                     or now < rotation.get('cooldown_until', 0) or now >= entry_cutoff):
                 return
-        budget = min(D(self.cfg.per_trade_limit), self.available()).quantize(D('0.01'))
+        budget = self.available()
+        unavailable = set()
+        if seat is None:
+            budget = min(D(self.cfg.per_trade_limit), budget)
+        else:
+            if len(occupied) >= self.cfg.max_positions:
+                return
+            unavailable.update(row['symbol'] for row in occupied)
+            for other, state in positions.items():
+                if other != seat and state.get('day') == day:
+                    unavailable.add(state.get('symbol'))
+            # A rotated-out stock also keeps its cooldown when another seat is free.
+            unavailable.update(t['symbol'] for t in self.s['trades'].values()
+                               if t.get('closed_at', 0) > now - self.cfg.trend_settings['cooldown_seconds'])
         day_index = self.cfg.sessions.index(day)
         eligible = []
         signals = {}
         for symbol, row in sorted(self.cfg.instruments.items()):
+            if symbol in unavailable:
+                continue
             if self.cfg.universe_effective_date and day < self.cfg.universe_effective_date and row['slot'] >= 3:
                 continue
             if not self.fresh(symbol, now):
@@ -393,11 +418,22 @@ class Ledger:
         symbol = rotation['symbol']
         if symbol not in eligible:
             return
+        if seat is not None:
+            # Share free cash among the opportunities available on this tick.
+            # If only one qualifies it can use all free cash, including gains.
+            from decimal import ROUND_DOWN
+            count = min(self.cfg.max_positions - len(occupied), len(eligible))
+            price = self.entry_price(signals[symbol]['direction'], symbol, self.s['quotes'][symbol])
+            side = 'BUY' if signals[symbol]['direction'] == 'LONG' else 'SELL'
+            minimum = price + fee(side, price, self.cfg.fee_model)
+            budget = max(minimum, (budget / count).quantize(D('.01'), rounding=ROUND_DOWN))
         q = self.s['quotes'][symbol]
         if head and head['symbol'] == symbol and q['at'] <= head['quote_at']:
             return
         rotation['sequence'] += 1
         slot_id = day + ':rotation:' + str(rotation['sequence'])
+        if seat is not None:
+            slot_id = f"{day}:portfolio:{seat}:{rotation['sequence']}"
         direction = 'LONG' if (self.cfg.instruments[symbol]['slot'] + day_index) % 2 == 0 else 'SHORT'
         if trending:
             direction = signals[symbol]['direction']
@@ -507,7 +543,7 @@ class Ledger:
         q = quotes.get(slot['symbol'])
         if not q or now < slot['after'] or q['at'] <= slot['quote_at']:
             return
-        if self.cfg.entry_policy == 'TREND_ROTATION':
+        if self.cfg.uses_trend:
             from .trend import signal
             evidence = signal(self.s, slot['symbol'], now, self.cfg.trend_settings)
             if (not evidence or evidence['direction'] != slot['direction']
@@ -641,7 +677,8 @@ def summarize(state, now=None):
                 recycle_entries=cfg.recycle_entries, daily_loss_paused=bool(state['day_loss'].get(day)),
                 policy_history=state.get('policy_history', []),
                 release_history=state.get('release_history', []),
-                entry_policy=cfg.entry_policy, rotation=state.get('rotation'), heartbeat=state['heartbeat'],
+                entry_policy=cfg.entry_policy, rotation=state.get('rotation'), portfolio=state.get('portfolio'),
+                heartbeat=state['heartbeat'],
                 trend_settings=cfg.trend_settings,
                 available_cash=str(obj.available()), equity_estimate=str(settled + unrealized),
                 reserved_entry_notional=str(sum((D(t['entry_price']) * t['remaining'] for t in open_trades), D(0))),

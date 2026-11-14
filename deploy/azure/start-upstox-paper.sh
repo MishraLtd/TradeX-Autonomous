@@ -41,7 +41,7 @@ from execution.paper_trial.MarketDataFeed_pb2 import FeedResponse
 import websocket
 import time
 cfg = TrialConfig.load('/var/lib/tradex/upstox-trial/config.json')
-assert cfg.initial_cash == '4000' and cfg.per_trade_limit == '2000' and cfg.max_positions == 3
+assert cfg.entry_policy == 'TREND_PORTFOLIO' and cfg.per_trade_limit is None and cfg.max_positions == 3
 assert time.time() < stamp(cfg.sessions[0], '09:25'), 'Prepared start date has passed; inspect config before proceeding'
 PY
 previous=$(readlink -f /opt/tradex/current)

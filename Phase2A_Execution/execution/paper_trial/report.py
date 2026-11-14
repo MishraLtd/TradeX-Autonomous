@@ -93,8 +93,12 @@ def report(path, now=None):
     peak, drawdown = D(state['config']['initial_cash']), D(0)
     for row in samples:
         if not row['stale']:
-            peak = max(peak, D(row['equity']))
-            drawdown = max(drawdown, peak - D(row['equity']))
+            # Compare all samples on the same funding basis without changing the ledger.
+            later_funding = sum((D(p.get('capital_adjustment', 0)) for p in state.get('policy_history', [])
+                                 if p['at'] > row['at']), D(0))
+            equity = D(row['equity']) + later_funding
+            peak = max(peak, equity)
+            drawdown = max(drawdown, peak - equity)
     expected_seconds = 0
     from .config import stamp
     for day in state['config']['sessions']:

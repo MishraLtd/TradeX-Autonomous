@@ -181,7 +181,10 @@ class RotationTest(unittest.TestCase):
                 patch('execution.paper_trial.upstox.regular_session',
                       side_effect=lambda client, day: day in DATES + ['2026-11-18']):
             cfg = prepare_config(Mock(), now=stamp(DATES[0], '09:10'))
-        self.assertEqual(cfg.entry_policy, 'TREND_ROTATION')
+        self.assertEqual(cfg.entry_policy, 'TREND_PORTFOLIO')
+        self.assertEqual(cfg.initial_cash, '10000')
+        self.assertIsNone(cfg.per_trade_limit)
+        self.assertEqual(cfg.net_profit_inr, '10')
         self.assertFalse(cfg.entry_times)
         self.assertEqual(cfg.sessions, DATES[1:] + ['2026-11-18'])
 

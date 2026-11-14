@@ -6,7 +6,7 @@ umask 077
 root=$(cd "$(dirname "$0")/../.." && pwd)
 release=${1:?Supply the full reviewed Git commit SHA}
 expand=${2:-}
-[[ -z $expand || $expand == --expand-universe || $expand == --random-rotation || $expand == --trend-recovery ]] || { echo 'Unknown upgrade option'; exit 1; }
+[[ -z $expand || $expand == --expand-universe || $expand == --random-rotation || $expand == --trend-recovery || $expand == --profitup ]] || { echo 'Unknown upgrade option'; exit 1; }
 [[ $release =~ ^[a-f0-9]{40}$ ]] || { echo 'A full Git SHA is required'; exit 1; }
 export GIT_OPTIONAL_LOCKS=0
 [[ $(git -C "$root" rev-parse HEAD) == "$release" ]] || { echo 'Checkout does not match release'; exit 1; }
@@ -48,6 +48,7 @@ upgrade=("$python" -m execution.paper_trial --config "$config" --db "$db" upgrad
 if [[ $expand == --expand-universe ]]; then upgrade+=(--expand-universe); fi
 if [[ $expand == --random-rotation ]]; then upgrade+=(--random-rotation); fi
 if [[ $expand == --trend-recovery ]]; then upgrade+=(--trend-recovery); fi
+if [[ $expand == --profitup ]]; then upgrade+=(--profitup); fi
 migration_started=0
 failed() {
   if [[ $migration_started -eq 0 ]]; then

@@ -1,12 +1,17 @@
 # TradeX Autonomous
 
-Latest policy: [trend entries and timed recovery](deploy/TREND_RECOVERY.md).
+The `profitup` paper portfolio starts with ₹10,000 and supports up to three
+distinct stocks at once. With one eligible signal, it can reserve all available
+cash. Concurrent signals share the available funds, with whole shares and
+entry fees covered. Each stock has its own cooldown and recovery timer.
+Paper shorts reserve their full notional. See [trend entries and timed recovery](deploy/TREND_RECOVERY.md).
 Entries start from 09:30 IST with confirmed five-minute price direction and
-four-minute cooldowns after each close. Take profit above INR 5 net; a net loss
+four-minute cooldowns for the stock after each close. Take profit above INR 10 net; a net loss
 below INR -5 starts a one-to-two-hour recovery window instead of an immediate
 price stop. The 15:00 square-off and INR 100 daily risk guard override holds.
-Existing trials need the explicit `--trend-recovery` VM upgrade. All trades
-remain local paper simulations; prior balances and history are preserved.
+Existing trials can use the explicit `--profitup` VM upgrade from a pinned checkout
+of this branch. Moving from ₹4,000 to ₹10,000 adds ₹6,000 to existing cash.
+The upgrade records this funding separately from trading profits and preserves all fills.
 
 The previous policy, retained for historical reports, was:
 

@@ -50,7 +50,7 @@ class TrialConfig:
     sessions: list
     mode: str = MODE
     initial_cash: str = '4000'
-    per_trade_limit: str = '2000'
+    per_trade_limit: str | None = '2000'
     max_positions: int = 3
     profit_pct: str = '2'
     stop_pct: str = '1'
@@ -85,16 +85,19 @@ class TrialConfig:
             raise ValueError('Recycling requires the reviewed net-cash exit policy')
         if any(D(v) <= 0 for v in (self.net_profit_inr, self.net_loss_inr, self.price_loss_inr)):
             raise ValueError('Positive whole-trade profit and loss thresholds required')
-        if not 0 < D(self.per_trade_limit) <= D(self.initial_cash):
+        portfolio = self.entry_policy == 'TREND_PORTFOLIO'
+        if portfolio and (self.per_trade_limit is not None or D(self.initial_cash) != 10000):
+            raise ValueError('Portfolio requires INR 10,000 initial cash and no fixed entry cap')
+        if not portfolio and (self.per_trade_limit is None or not 0 < D(self.per_trade_limit) <= D(self.initial_cash)):
             raise ValueError('Invalid account or trade budget')
         if type(self.max_positions) is not int or not 1 <= self.max_positions <= 3:
             raise ValueError('At most three paper positions')
-        if self.entry_policy not in ('FIXED_SCHEDULE', 'RANDOM_ROTATION', 'TREND_ROTATION'):
+        if self.entry_policy not in ('FIXED_SCHEDULE', 'RANDOM_ROTATION', 'TREND_ROTATION', 'TREND_PORTFOLIO'):
             raise ValueError('Unknown entry policy')
-        if self.entry_policy == 'TREND_ROTATION' or self.exit_policy == 'NET_RECOVERY' or self.trend_settings is not None:
+        if self.uses_trend or self.exit_policy == 'NET_RECOVERY' or self.trend_settings is not None:
             from .trend import SETTINGS
-            if (self.entry_policy != 'TREND_ROTATION' or self.exit_policy != 'NET_RECOVERY'
-                    or self.trend_settings != SETTINGS or self.entry_times or D(self.net_profit_inr) != 5):
+            if (not self.uses_trend or self.exit_policy != 'NET_RECOVERY'
+                    or self.trend_settings != SETTINGS or self.entry_times or D(self.net_profit_inr) != (10 if portfolio else 5)):
                 raise ValueError('Trend recovery requires the complete reviewed policy settings')
         if self.entry_policy == 'RANDOM_ROTATION' and (self.entry_times or self.exit_policy != 'NET_PROFIT_PRICE_STOP'):
             raise ValueError('Rotation requires no stock entry times and the corrected exit policy')
@@ -138,6 +141,10 @@ class TrialConfig:
                 raise ValueError('Positive finite timing required')
         if self.max_quote_age > 15 or self.entry_window > 120 or self.latency_seconds > 10 or self.exit_response_timeout > 120:
             raise ValueError('Unsafe timing configuration')
+
+    @property
+    def uses_trend(self):
+        return self.entry_policy in ('TREND_ROTATION', 'TREND_PORTFOLIO')
 
     @property
     def fingerprint(self):
