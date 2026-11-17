@@ -54,7 +54,10 @@ class TrialConfig:
     max_positions: int = 3
     profit_pct: str = '2'
     stop_pct: str = '1'
-    daily_loss_limit: str = '100'
+    # This paper policy deliberately has no per-day loss pause.  The mandatory
+    # intraday square-off remains in force; this value is retained for replaying
+    # prior trial ledgers that did have a daily loss limit.
+    daily_loss_limit: str | None = '100'
     entry_times: tuple = ('09:30', '10:30', '11:30')
     flatten_time: str = '15:00'
     hard_close_time: str = '15:10'
@@ -86,8 +89,8 @@ class TrialConfig:
         if any(D(v) <= 0 for v in (self.net_profit_inr, self.net_loss_inr, self.price_loss_inr)):
             raise ValueError('Positive whole-trade profit and loss thresholds required')
         portfolio = self.entry_policy == 'TREND_PORTFOLIO'
-        if portfolio and (self.per_trade_limit is not None or D(self.initial_cash) != 10000):
-            raise ValueError('Portfolio requires INR 10,000 initial cash and no fixed entry cap')
+        if portfolio and (self.per_trade_limit is not None or D(self.initial_cash) not in (10000, 100000)):
+            raise ValueError('Portfolio requires reviewed paper capital and no fixed entry cap')
         if not portfolio and (self.per_trade_limit is None or not 0 < D(self.per_trade_limit) <= D(self.initial_cash)):
             raise ValueError('Invalid account or trade budget')
         if type(self.max_positions) is not int or not 1 <= self.max_positions <= 3:
@@ -95,14 +98,15 @@ class TrialConfig:
         if self.entry_policy not in ('FIXED_SCHEDULE', 'RANDOM_ROTATION', 'TREND_ROTATION', 'TREND_PORTFOLIO'):
             raise ValueError('Unknown entry policy')
         if self.uses_trend or self.exit_policy == 'NET_RECOVERY' or self.trend_settings is not None:
-            from .trend import SETTINGS
+            from .trend import SETTINGS, LEGACY_SETTINGS
             if (not self.uses_trend or self.exit_policy != 'NET_RECOVERY'
-                    or self.trend_settings != SETTINGS or self.entry_times or D(self.net_profit_inr) != (10 if portfolio else 5)):
+                    or self.trend_settings not in (SETTINGS, LEGACY_SETTINGS) or self.entry_times
+                    or D(self.net_profit_inr) != (10 if portfolio else 5)):
                 raise ValueError('Trend recovery requires the complete reviewed policy settings')
         if self.entry_policy == 'RANDOM_ROTATION' and (self.entry_times or self.exit_policy != 'NET_PROFIT_PRICE_STOP'):
             raise ValueError('Rotation requires no stock entry times and the corrected exit policy')
-        if not 3 <= len(self.instruments) <= 8 or (self.entry_policy == 'FIXED_SCHEDULE' and len(self.entry_times) != len(self.instruments)):
-            raise ValueError('Require three to eight approved NSE equities with matching entry slots')
+        if not 3 <= len(self.instruments) <= 9 or (self.entry_policy == 'FIXED_SCHEDULE' and len(self.entry_times) != len(self.instruments)):
+            raise ValueError('Require three to nine approved NSE equities with matching entry slots')
         keys = set()
         if {row.get('slot') for row in self.instruments.values()} != set(range(len(self.instruments))):
             raise ValueError('Instrument slots must be consecutive from zero')
@@ -129,9 +133,11 @@ class TrialConfig:
         for hhmm in ordered:
             if time.fromisoformat(hhmm).strftime('%H:%M') != hhmm:
                 raise ValueError('Use HH:MM times')
-        for val in (self.profit_pct, self.stop_pct, self.daily_loss_limit):
+        for val in (self.profit_pct, self.stop_pct):
             if D(val) <= 0:
                 raise ValueError('Positive risk thresholds required')
+        if self.daily_loss_limit is not None and D(self.daily_loss_limit) <= 0:
+            raise ValueError('Daily loss limit must be positive when enabled')
         if D(self.stop_pct) >= 100 or D(self.profit_pct) >= 50:
             raise ValueError('Invalid target or stop')
         if not 0 <= D(self.slippage_bps) <= 100 or not 0 < D(self.depth_participation) <= 1:

@@ -1,16 +1,18 @@
 # TradeX Autonomous
 
-The `profitup` paper portfolio starts with ₹10,000 and supports up to three
+The `profitup` paper portfolio starts with ₹1,00,000 and supports up to three
 distinct stocks at once. With one eligible signal, it can reserve all available
 cash. Concurrent signals share the available funds, with whole shares and
 entry fees covered. Each stock has its own cooldown and recovery timer.
 Paper shorts reserve their full notional. See [trend entries and timed recovery](deploy/TREND_RECOVERY.md).
-Entries start from 09:30 IST with confirmed five-minute price direction and
+Entries start from 09:30 IST after a 15-minute observed-volatility ranking and confirmed five-minute price direction.
+The ranking score is 60% high-low range plus 40% realised one-minute movement,
+and it selects up to three distinct stocks concurrently.
 four-minute cooldowns for the stock after each close. Take profit above INR 10 net; a net loss
 below INR -5 starts a one-to-two-hour recovery window instead of an immediate
-price stop. The 15:00 square-off and INR 100 daily risk guard override holds.
-Existing trials can use the explicit `--profitup` VM upgrade from a pinned checkout
-of this branch. Moving from ₹4,000 to ₹10,000 adds ₹6,000 to existing cash.
+price stop. The 15:00 square-off overrides holds; this policy has no daily loss cap.
+Existing trials can use the explicit `--volatility-portfolio` VM upgrade from a pinned checkout
+of this branch. Moving from ₹10,000 to ₹1,00,000 adds ₹90,000 to existing cash.
 The upgrade records this funding separately from trading profits and preserves all fills.
 
 The previous policy, retained for historical reports, was:

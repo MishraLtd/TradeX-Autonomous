@@ -14,7 +14,7 @@ from .ledger import read_state
 from .report import snapshot, write_private
 
 
-def upgrade(config_path, db_path, backup_dir, expected_implementation, release, now=None, check=False, expand_universe=False, random_rotation=False, trend_recovery=False, profitup=False):
+def upgrade(config_path, db_path, backup_dir, expected_implementation, release, now=None, check=False, expand_universe=False, random_rotation=False, trend_recovery=False, profitup=False, volatility_portfolio=False):
     now = time.time() if now is None else now
     config_path, db_path, backup_dir = map(Path, (config_path, db_path, backup_dir))
     if not re.fullmatch(r'[a-f0-9]{64}', expected_implementation) or not re.fullmatch(r'[a-f0-9]{40}', release):
@@ -43,28 +43,30 @@ def upgrade(config_path, db_path, backup_dir, expected_implementation, release, 
             raise ValueError('Upgrade outside the planned session: before 09:10 or after 15:15 IST')
         if now >= stamp(cfg.sessions[-1], cfg.hard_close_time):
             raise ValueError('The trial has ended; preserve its report instead of extending its dates')
-        if sum((trend_recovery, random_rotation, profitup)) > 1:
+        if sum((trend_recovery, random_rotation, profitup, volatility_portfolio)) > 1:
             raise ValueError('Select one entry policy')
         policy_change = cfg.exit_policy not in ('NET_PROFIT_PRICE_STOP', 'NET_RECOVERY')
         new_cfg = (replace(cfg, exit_policy='NET_PROFIT_PRICE_STOP', net_profit_inr='1', price_loss_inr='2',
                            recycle_entries=True, fee_model=CURRENT_FEES) if policy_change else cfg)
-        if trend_recovery or profitup:
+        if trend_recovery or profitup or volatility_portfolio:
             from .trend import SETTINGS
-            policy = 'TREND_PORTFOLIO' if profitup else 'TREND_ROTATION'
-            if cfg.entry_policy == 'TREND_PORTFOLIO' and not profitup:
+            portfolio = profitup or volatility_portfolio
+            policy = 'TREND_PORTFOLIO' if portfolio else 'TREND_ROTATION'
+            if cfg.entry_policy == 'TREND_PORTFOLIO' and not portfolio:
                 raise ValueError('This portfolio is already on the profitup policy')
             policy_change = policy_change or cfg.entry_policy != policy
             new_cfg = replace(new_cfg, entry_policy=policy, exit_policy='NET_RECOVERY',
-                              initial_cash='10000' if profitup else cfg.initial_cash,
-                              per_trade_limit=None if profitup else cfg.per_trade_limit,
-                              entry_times=(), net_profit_inr='10' if profitup else '5', trend_settings=dict(SETTINGS),
+                              initial_cash='100000' if volatility_portfolio else '10000' if profitup else cfg.initial_cash,
+                              per_trade_limit=None if portfolio else cfg.per_trade_limit,
+                              daily_loss_limit=None if volatility_portfolio else new_cfg.daily_loss_limit,
+                              entry_times=(), net_profit_inr='10' if portfolio else '5', trend_settings=dict(SETTINGS),
                               recycle_entries=True, fee_model=CURRENT_FEES)
         universe_change = False
-        if expand_universe or random_rotation or trend_recovery or profitup:
-            from .upstox import expanded_instruments, APPROVED_SYMBOLS, APPROVED_TIMES
+        if expand_universe or random_rotation or trend_recovery or profitup or volatility_portfolio:
+            from .upstox import expanded_instruments, APPROVED_SYMBOLS, PREVIOUS_APPROVED_SYMBOLS, APPROVED_TIMES
             symbols = tuple(sorted(cfg.instruments, key=lambda s: cfg.instruments[s]['slot']))
-            if symbols not in (APPROVED_SYMBOLS[:3], APPROVED_SYMBOLS):
-                raise ValueError('Expansion requires the original three or the reviewed eight stocks')
+            if symbols not in (APPROVED_SYMBOLS[:3], PREVIOUS_APPROVED_SYMBOLS, APPROVED_SYMBOLS):
+                raise ValueError('Expansion requires the original three, eight, or nine reviewed stocks')
             resolved = expanded_instruments()
             if any(resolved[s] != row for s, row in cfg.instruments.items()):
                 raise ValueError('Existing instrument metadata changed; inspect before upgrading')
@@ -120,7 +122,7 @@ def upgrade(config_path, db_path, backup_dir, expected_implementation, release, 
             try:
                 changes = dict(schema=2, config=asdict(new_cfg), config_hash=new_cfg.fingerprint,
                                implementation_sha256=implementation_fingerprint(), release=release)
-                if (trend_recovery or profitup) and cfg.entry_policy != new_cfg.entry_policy:
+                if (trend_recovery or profitup or volatility_portfolio) and cfg.entry_policy != new_cfg.entry_policy:
                     changes.update(rotation={}, trend_history={})
                 if policy_change or universe_change:
                     changes['policy_history'] = state.get('policy_history', []) + [receipt]

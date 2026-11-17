@@ -259,7 +259,8 @@ class Ledger:
                 continue
             pnl = self.net_liquidation(trade)
             losses += max(D(0), -pnl)
-        if losses >= D(self.cfg.daily_loss_limit) and not self.s['day_loss'].get(day):
+        if (self.cfg.daily_loss_limit is not None and losses >= D(self.cfg.daily_loss_limit)
+                and not self.s['day_loss'].get(day)):
             self.s['day_loss'][day] = True
             self.event(now, 'DAILY_LOSS_PAUSE', loss_estimate=losses)
         for trade in self.active():
@@ -408,12 +409,16 @@ class Ledger:
             candidates = [s for s in eligible if s != rotation['exclude']]
             if not candidates:
                 return
-            chosen = (max(candidates, key=lambda s: D(signals[s]['strength']))
+            chosen = (max(candidates, key=lambda s: D(signals[s].get('volatility_score', signals[s]['strength'])))
                       if trending and rotation['visit'] == 0 else secrets.choice(candidates))
             rotation.update(symbol=chosen, visit=rotation['visit'] + 1)
             self.event(now, 'ROTATION_SELECT', symbol=rotation['symbol'], visit=rotation['visit'],
                        candidates=candidates, probability_each=None if trending and rotation['visit'] == 1 else '1/' + str(len(candidates)),
-                       selection='STRONGEST_TREND' if trending and rotation['visit'] == 1 else 'UNIFORM',
+                       selection='HIGHEST_VOLATILITY_CONFIRMED_TREND' if trending and rotation['visit'] == 1 else 'UNIFORM',
+                       volatility_formula=(signals[rotation['symbol']].get('formula')
+                                           if trending and rotation['visit'] == 1 else None),
+                       volatility_score=(signals[rotation['symbol']].get('volatility_score', signals[rotation['symbol']]['strength'])
+                                         if trending and rotation['visit'] == 1 else None),
                        excluded=rotation['exclude'])
         symbol = rotation['symbol']
         if symbol not in eligible:

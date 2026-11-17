@@ -148,8 +148,9 @@ def resolve_instruments(symbols, bod, mis):
     return result
 
 
-APPROVED_SYMBOLS = ('SBIN', 'ITC', 'HDFCBANK', 'KLBRENG-B', 'ADANIENT', 'BAJFINANCE', 'PAYTM', 'INDUSINDBK')
-APPROVED_TIMES = ('09:30', '10:30', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00')
+PREVIOUS_APPROVED_SYMBOLS = ('SBIN', 'ITC', 'HDFCBANK', 'KLBRENG-B', 'ADANIENT', 'BAJFINANCE', 'PAYTM', 'INDUSINDBK')
+APPROVED_SYMBOLS = PREVIOUS_APPROVED_SYMBOLS + ('VEDL',)
+APPROVED_TIMES = ('09:30', '10:30', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:15')
 
 
 def expanded_instruments():
@@ -172,7 +173,7 @@ def prepare_config(client, now=None, symbols=APPROVED_SYMBOLS):
             from .trend import SETTINGS
             return TrialConfig(instruments=instruments, sessions=sessions, entry_times=(),
                                entry_policy='TREND_PORTFOLIO', trend_settings=dict(SETTINGS), fee_model=CURRENT_FEES,
-                               initial_cash='10000', per_trade_limit=None, net_profit_inr='10',
+                               initial_cash='100000', per_trade_limit=None, daily_loss_limit=None, net_profit_inr='10',
                                exit_policy='NET_RECOVERY', recycle_entries=True)
     raise DataError('FIVE_REGULAR_SESSIONS_NOT_FOUND')
 
