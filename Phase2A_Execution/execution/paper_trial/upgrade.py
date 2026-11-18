@@ -14,7 +14,7 @@ from .ledger import read_state
 from .report import snapshot, write_private
 
 
-def upgrade(config_path, db_path, backup_dir, expected_implementation, release, now=None, check=False, expand_universe=False, random_rotation=False, trend_recovery=False, profitup=False, volatility_portfolio=False):
+def upgrade(config_path, db_path, backup_dir, expected_implementation, release, now=None, check=False, expand_universe=False, random_rotation=False, trend_recovery=False, profitup=False, volatility_portfolio=False, continuous=False):
     now = time.time() if now is None else now
     config_path, db_path, backup_dir = map(Path, (config_path, db_path, backup_dir))
     if not re.fullmatch(r'[a-f0-9]{64}', expected_implementation) or not re.fullmatch(r'[a-f0-9]{40}', release):
@@ -41,7 +41,9 @@ def upgrade(config_path, db_path, backup_dir, expected_implementation, release, 
             raise ValueError('Upgrade requires no pending entries')
         if any(stamp(day, '09:10') <= now <= stamp(day, '15:15') for day in cfg.sessions):
             raise ValueError('Upgrade outside the planned session: before 09:10 or after 15:15 IST')
-        if now >= stamp(cfg.sessions[-1], cfg.hard_close_time):
+        if continuous:
+            volatility_portfolio = True
+        if not (continuous or cfg.continuous) and now >= stamp(cfg.sessions[-1], cfg.hard_close_time):
             raise ValueError('The trial has ended; preserve its report instead of extending its dates')
         if sum((trend_recovery, random_rotation, profitup, volatility_portfolio)) > 1:
             raise ValueError('Select one entry policy')
@@ -54,8 +56,9 @@ def upgrade(config_path, db_path, backup_dir, expected_implementation, release, 
             policy = 'TREND_PORTFOLIO' if portfolio else 'TREND_ROTATION'
             if cfg.entry_policy == 'TREND_PORTFOLIO' and not portfolio:
                 raise ValueError('This portfolio is already on the profitup policy')
-            policy_change = policy_change or cfg.entry_policy != policy
+            policy_change = policy_change or cfg.entry_policy != policy or (continuous and not cfg.continuous)
             new_cfg = replace(new_cfg, entry_policy=policy, exit_policy='NET_RECOVERY',
+                              continuous=continuous or cfg.continuous,
                               initial_cash='100000' if volatility_portfolio else '10000' if profitup else cfg.initial_cash,
                               per_trade_limit=None if portfolio else cfg.per_trade_limit,
                               daily_loss_limit=None if volatility_portfolio else new_cfg.daily_loss_limit,
@@ -71,7 +74,7 @@ def upgrade(config_path, db_path, backup_dir, expected_implementation, release, 
             if any(resolved[s] != row for s, row in cfg.instruments.items()):
                 raise ValueError('Existing instrument metadata changed; inspect before upgrading')
             if symbols != APPROVED_SYMBOLS:
-                effective = next(day for day in cfg.sessions if now < stamp(day, '09:10'))
+                effective = next((day for day in cfg.sessions if now < stamp(day, '09:10')), None)
                 new_cfg = replace(new_cfg, instruments=resolved,
                                   entry_times=() if new_cfg.entry_policy != 'FIXED_SCHEDULE' else APPROVED_TIMES,
                                   universe_effective_date=effective)
@@ -124,6 +127,8 @@ def upgrade(config_path, db_path, backup_dir, expected_implementation, release, 
                                implementation_sha256=implementation_fingerprint(), release=release)
                 if (trend_recovery or profitup or volatility_portfolio) and cfg.entry_policy != new_cfg.entry_policy:
                     changes.update(rotation={}, trend_history={})
+                if continuous:
+                    changes.update(completed=False, portfolio={}, trend_history={})
                 if policy_change or universe_change:
                     changes['policy_history'] = state.get('policy_history', []) + [receipt]
                 else:

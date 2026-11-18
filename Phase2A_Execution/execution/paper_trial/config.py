@@ -78,6 +78,10 @@ class TrialConfig:
     universe_effective_date: str | None = None
     entry_policy: str = 'FIXED_SCHEDULE'
     trend_settings: dict | None = None
+    continuous: bool = False
+
+    def session_candidate(self, day):
+        return day in self.sessions or (self.continuous and day > self.sessions[-1])
 
     def __post_init__(self):
         if self.mode != MODE or self.fee_model not in (LEGACY_FEES, CURRENT_FEES):
@@ -89,6 +93,8 @@ class TrialConfig:
         if any(D(v) <= 0 for v in (self.net_profit_inr, self.net_loss_inr, self.price_loss_inr)):
             raise ValueError('Positive whole-trade profit and loss thresholds required')
         portfolio = self.entry_policy == 'TREND_PORTFOLIO'
+        if type(self.continuous) is not bool or (self.continuous and not portfolio):
+            raise ValueError('Continuous sessions require the paper portfolio')
         if portfolio and (self.per_trade_limit is not None or D(self.initial_cash) not in (10000, 100000)):
             raise ValueError('Portfolio requires reviewed paper capital and no fixed entry cap')
         if not portfolio and (self.per_trade_limit is None or not 0 < D(self.per_trade_limit) <= D(self.initial_cash)):
@@ -155,6 +161,8 @@ class TrialConfig:
     @property
     def fingerprint(self):
         values = asdict(self)
+        if not self.continuous:
+            values.pop('continuous')
         if self.trend_settings is None:
             values.pop('trend_settings')
         if self.entry_policy == 'FIXED_SCHEDULE':

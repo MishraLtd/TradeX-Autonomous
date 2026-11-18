@@ -36,11 +36,13 @@ class Receiver(threading.Thread):
         import websocket
         delay = 1
         prepared_day = None
+        closed_day = None
         while not self.stop.is_set():
             now = time.time()
             day = datetime.fromtimestamp(now, IST).date().isoformat()
-            self.update(day=day)
-            if day not in self.cfg.sessions or not stamp(day, '09:10') <= now < stamp(day, self.cfg.hard_close_time):
+            if self.status()['day'] != day:
+                self.update(day=day, calendar_valid=False, connected=False, normal=False, error=None)
+            if closed_day == day or not self.cfg.session_candidate(day) or not stamp(day, '09:10') <= now < stamp(day, self.cfg.hard_close_time):
                 self.update(connected=False, normal=False)
                 self.stop.wait(1)
                 continue
@@ -49,6 +51,9 @@ class Receiver(threading.Thread):
                 if prepared_day != day:
                     self.update(calendar_valid=False)
                     if not regular_session(self.client, day):
+                        if self.cfg.continuous and day not in self.cfg.sessions:
+                            closed_day = day
+                            continue
                         raise DataError('PLANNED_SESSION_CHANGED')
                     symbols = sorted(self.cfg.instruments, key=lambda s: self.cfg.instruments[s]['slot'])
                     instruments = resolve_instruments(symbols, load_instruments('NSE.json.gz'), load_instruments('NSE_MIS.json.gz'))
@@ -125,6 +130,7 @@ def run(config, db_path, client, report_dir):
     ledger = Ledger(db_path, config)
     receiver = Receiver(client, config, stop)
     receiver.start()
+    entry_pause = Path(db_path).parent / 'entries.paused'
     last_report = 0
     base_reconnects = ledger.s['reconnects']
     seen_reconnects = 0
@@ -136,6 +142,7 @@ def run(config, db_path, client, report_dir):
             except Empty:
                 pass
             now, market = time.time(), receiver.status()
+            market['entries_paused'] = config.continuous and entry_pause.exists()
             if generation != market['generation'] or not market['connected']:
                 quotes = {}
             receipt = os.environ.get('TRADEX_TRIAL_LEASE_RECEIPT')
@@ -152,7 +159,7 @@ def run(config, db_path, client, report_dir):
             if now - last_report >= 60:
                 result = report(db_path, now)
                 write_private(Path(report_dir) / 'latest.json', result)
-                for day in config.sessions:
+                for day in set(config.sessions).union(ledger.s['sessions']):
                     daily_path = Path(report_dir) / (day + '.json')
                     if now >= stamp(day, config.hard_close_time) and not daily_path.exists():
                         # The DB always remains the authoritative audit trail.

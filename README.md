@@ -1,5 +1,15 @@
 # TradeX Autonomous
 
+For ongoing Upstox paper trading, activate a pinned checkout on the worker with
+`sudo bash deploy/azure/upgrade-upstox-greedy.sh "$TRADEX_RELEASE" --continuous`.
+This migrates a flat existing ledger, including a finished five-session trial,
+to the ₹1 lakh volatility portfolio. Each subsequent trading day requires the
+Upstox calendar and instrument checks. The VM's power schedule still applies.
+Verify `continuous: true` in the paper status output. To pause new entries across
+reboots, run `sudo touch /var/lib/tradex/upstox-trial/entries.paused`; the
+worker continues managing exits. Resume with
+`sudo unlink /var/lib/tradex/upstox-trial/entries.paused`.
+
 The `profitup` paper portfolio starts with ₹1,00,000 and supports up to three
 distinct stocks at once. With one eligible signal, it can reserve all available
 cash. Concurrent signals share the available funds, with whole shares and

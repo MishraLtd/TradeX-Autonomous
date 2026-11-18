@@ -192,7 +192,12 @@ class Ledger:
             self.s['market'] = market
             day = datetime.fromtimestamp(now, IST).date().isoformat()
             fresh = self._accept_quotes(quotes or {}, now)
-            for planned in self.cfg.sessions:
+            if (self.cfg.continuous and self.cfg.session_candidate(day) and market.get('day') == day
+                    and market.get('calendar_valid') is True):
+                self.s['sessions'].setdefault(day, 'RUNNING')
+            unfinished = (d for d, status in self.s['sessions'].items() if status == 'RUNNING')
+            unstarted = set(self.cfg.sessions).difference(self.s['sessions'])
+            for planned in sorted(unstarted.union(unfinished)):
                 if now >= stamp(planned, self.cfg.hard_close_time):
                     for slot_id, slot in self.s['slots'].items():
                         if slot['day'] == planned and slot['state'] == 'PENDING':
@@ -207,7 +212,7 @@ class Ledger:
                         self.s['sessions'][planned] = 'MISSED'
                     elif self.s['sessions'][planned] == 'RUNNING':
                         self.s['sessions'][planned] = 'FINISHED'
-            planned_today = day in self.cfg.sessions
+            planned_today = day in self.cfg.sessions or (self.cfg.continuous and day in self.s['sessions'])
             allowed = bool(planned_today and market.get('day') == day and market.get('calendar_valid') is True
                            and market.get('normal') is True and market.get('connected') is True
                            and stamp(day, '09:15') <= now < stamp(day, self.cfg.hard_close_time))
@@ -231,21 +236,25 @@ class Ledger:
                     if trade['day'] == day:
                         self._fill_exit(trade, fresh, liquidity, now)
             if planned_today:
+                entries_paused = market.get('entries_paused', False)
+                entry_allowed = allowed and not entries_paused
                 if self.cfg.entry_policy == 'TREND_PORTFOLIO':
                     for seat in range(self.cfg.max_positions):
-                        self._rotate(now, day, allowed, seat=str(seat))
+                        self._rotate(now, day, entry_allowed, seat=str(seat))
                 elif self.cfg.entry_policy in ('RANDOM_ROTATION', 'TREND_ROTATION'):
                     self._rotate(now, day, allowed)
                 else:
                     self._schedule(now, day, allowed)
                     self._recycle(now, day, allowed)
                 for slot in list(self.pending()):
-                    if (slot['day'] != day or now > slot['expires'] or now >= stamp(day, self.cfg.flatten_time)
+                    if entries_paused:
+                        slot['state'], slot['reason'] = 'SKIPPED', 'OPERATOR_PAUSE'
+                    elif (slot['day'] != day or now > slot['expires'] or now >= stamp(day, self.cfg.flatten_time)
                             or self.s['halt'] or self.s['day_loss'].get(day)):
                         slot['state'], slot['reason'] = 'SKIPPED', 'ENTRY_EXPIRED_OR_PAUSED'
                     elif allowed:
                         self._fill_entry(slot, fresh, liquidity, now)
-            self.s['completed'] = now >= stamp(self.cfg.sessions[-1], self.cfg.hard_close_time)
+            self.s['completed'] = not self.cfg.continuous and now >= stamp(self.cfg.sessions[-1], self.cfg.hard_close_time)
             if now - self.s['last_sample'] >= 60:
                 summary = self.summary(now)
                 self.db.execute('INSERT OR REPLACE INTO equity VALUES (?,?,?)',
@@ -379,7 +388,7 @@ class Ledger:
             # A rotated-out stock also keeps its cooldown when another seat is free.
             unavailable.update(t['symbol'] for t in self.s['trades'].values()
                                if t.get('closed_at', 0) > now - self.cfg.trend_settings['cooldown_seconds'])
-        day_index = self.cfg.sessions.index(day)
+        day_index = 0 if trending else self.cfg.sessions.index(day)
         eligible = []
         signals = {}
         for symbol, row in sorted(self.cfg.instruments.items()):
@@ -645,7 +654,8 @@ def summarize(state, now=None):
     settled = D(cfg.initial_cash) + D(state['realized_gross']) - D(state['fees'])
     stale = [t['id'] for t in open_trades if not obj.fresh(t['symbol'], now)]
     day = datetime.fromtimestamp(now, IST).date().isoformat()
-    expected = day in cfg.sessions and stamp(day, '09:15') <= now < stamp(day, cfg.hard_close_time)
+    expected = (day in cfg.sessions or day in state['sessions'] or
+                (cfg.continuous and state['market'].get('day') == day and state['market'].get('error'))) and stamp(day, '09:15') <= now < stamp(day, cfg.hard_close_time)
     codes = []
     if not 0 <= now - state['heartbeat'] <= 30:
         codes.append('WORKER_STALE')
@@ -689,7 +699,7 @@ def summarize(state, now=None):
                 reserved_entry_notional=str(sum((D(t['entry_price']) * t['remaining'] for t in open_trades), D(0))),
                 gross_realized=state['realized_gross'], estimated_fees=state['fees'],
                 unrealized_net_estimate=str(unrealized), open_positions=len(open_trades), stale_marks=stale,
-                sessions=state['sessions'], completed=state['completed'], halt=state['halt'],
+                sessions=state['sessions'], continuous=cfg.continuous, completed=state['completed'], halt=state['halt'],
                 trades=list(state['trades'].values()), slots=list(state['slots'].values()),
                 feed_fresh_seconds=state['feed_fresh_seconds'], reconnects=state['reconnects'],
                 live_quote_updates=state['live_quote_updates'], market=state['market'],

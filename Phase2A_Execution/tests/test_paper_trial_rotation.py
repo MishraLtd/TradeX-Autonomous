@@ -182,7 +182,7 @@ class RotationTest(unittest.TestCase):
                       side_effect=lambda client, day: day in DATES + ['2026-11-18']):
             cfg = prepare_config(Mock(), now=stamp(DATES[0], '09:10'))
         self.assertEqual(cfg.entry_policy, 'TREND_PORTFOLIO')
-        self.assertEqual(cfg.initial_cash, '10000')
+        self.assertEqual(cfg.initial_cash, '100000')
         self.assertIsNone(cfg.per_trade_limit)
         self.assertEqual(cfg.net_profit_inr, '10')
         self.assertFalse(cfg.entry_times)

@@ -101,7 +101,7 @@ def report(path, now=None):
             drawdown = max(drawdown, peak - equity)
     expected_seconds = 0
     from .config import stamp
-    for day in state['config']['sessions']:
+    for day in set(state['config']['sessions']).union(state['sessions']):
         expected_seconds += max(0, min(now, stamp(day, '15:10')) - stamp(day, '09:15'))
     result.update(
         report_schema=2, generated_at=now, assumptions=state['config'],
