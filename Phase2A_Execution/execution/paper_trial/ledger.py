@@ -6,6 +6,7 @@ A snapshot therefore cannot restore an engine without its simulated account.
 from contextlib import contextmanager, closing
 from dataclasses import asdict
 from datetime import datetime
+from decimal import InvalidOperation
 import fcntl
 import json
 import os
@@ -14,7 +15,7 @@ import sqlite3
 import secrets
 import time
 
-from .config import D, IST, dumps, stamp, price_tick, implementation_fingerprint, LEGACY_FEES
+from .config import D, IST, dumps, stamp, price_tick, implementation_fingerprint, LEGACY_FEES, SPREAD_WEEK
 from .costs import fee, target, breakdown, fee_delta
 
 
@@ -153,16 +154,16 @@ class Ledger:
                    net_estimate_at_request=trade['exit_intent']['net_estimate_at_request'],
                    gross_estimate_at_request=trade['exit_intent']['gross_estimate_at_request'])
 
-    def _accept_quotes(self, quotes, now):
+    def _accept_quotes(self, quotes, now, books):
         accepted = {}
         for symbol, q in quotes.items():
             try:
-                if symbol not in self.cfg.instruments or not all(
+                if symbol not in books or not all(
                         -2 <= now - q[k] <= self.cfg.max_quote_age for k in ('at', 'received', 'traded')):
                     raise ValueError('Quote age')
                 if not 0 < D(q['bid']) <= D(q['ask']) or D(q['last']) <= 0:
                     raise ValueError('Invalid book')
-                tick = D(self.cfg.instruments[symbol]['tick'])
+                tick = D(books[symbol]['tick'])
                 if any(D(q[k]) % tick for k in ('bid', 'ask', 'last')):
                     raise ValueError('Quote/tick mismatch')
                 if any(type(q[k]) is not int or q[k] < 0 for k in ('bid_qty', 'ask_qty')):
@@ -174,8 +175,13 @@ class Ledger:
                 if q.get('live') is True:
                     accepted[symbol] = q
                     self.s['live_quote_updates'] += 1
-            except (KeyError, ValueError, TypeError):
+            except (KeyError, ValueError, TypeError, InvalidOperation):
                 self.s['rejected_quotes'] += 1
+                at = q.get('at') if isinstance(q, dict) else None
+                if (self.cfg.bse_instruments and symbol in books and isinstance(at, (float, int))
+                        and at >= self.s['watermarks'].get(symbol, 0) and at <= now + 2):
+                    self.s['quotes'].pop(symbol, None)
+                    self.s['watermarks'][symbol] = at
         return accepted
 
     def step(self, now, market, quotes=None):
@@ -191,7 +197,9 @@ class Ledger:
             self.s['heartbeat'] = self.s['previous_step'] = now
             self.s['market'] = market
             day = datetime.fromtimestamp(now, IST).date().isoformat()
-            fresh = self._accept_quotes(quotes or {}, now)
+            books = self.cfg.books(day)
+            fresh = self._accept_quotes(quotes or {}, now, books)
+            paired = self.cfg.spread_session(day)
             if (self.cfg.continuous and self.cfg.session_candidate(day) and market.get('day') == day
                     and market.get('calendar_valid') is True):
                 self.s['sessions'].setdefault(day, 'RUNNING')
@@ -218,13 +226,13 @@ class Ledger:
                            and stamp(day, '09:15') <= now < stamp(day, self.cfg.hard_close_time))
             if self.s['halt'] == 'RESTORED_TRIAL_REQUIRES_REVIEW':
                 allowed = False
-            if self.cfg.uses_trend and allowed:
+            if self.cfg.uses_trend and allowed and not paired:
                 from .trend import observe
                 observe(self.s, fresh, now, day)
             if planned_today and now < stamp(day, self.cfg.hard_close_time):
                 if now >= stamp(day, '09:15'):
                     self.s['sessions'].setdefault(day, 'RUNNING')
-                if allowed and all(self.fresh(s, now) and self.s['quotes'][s].get('live') for s in self.cfg.instruments):
+                if allowed and all(self.fresh(s, now) and self.s['quotes'][s].get('live') for s in books):
                     self.s['feed_fresh_seconds'] += max(0, min(2, now - previous)) if previous else 0
                 self._risk_and_exits(now, day)
             # Liquidity is consumed once per stock/side/frame, shared by exits
@@ -235,7 +243,10 @@ class Ledger:
                 for trade in self.active():
                     if trade['day'] == day:
                         self._fill_exit(trade, fresh, liquidity, now)
-            if planned_today:
+            if paired:
+                from . import spread
+                spread.step(self, now, day, allowed and not market.get('entries_paused'), fresh)
+            elif planned_today:
                 entries_paused = market.get('entries_paused', False)
                 entry_allowed = allowed and not entries_paused
                 if self.cfg.entry_policy == 'TREND_PORTFOLIO':
@@ -262,16 +273,12 @@ class Ledger:
                 self.s['last_sample'] = now
 
     def _risk_and_exits(self, now, day):
-        losses = D(0)
-        for trade in self.s['trades'].values():
-            if trade['day'] != day:
-                continue
-            pnl = self.net_liquidation(trade)
-            losses += max(D(0), -pnl)
-        if (self.cfg.daily_loss_limit is not None and losses >= D(self.cfg.daily_loss_limit)
-                and not self.s['day_loss'].get(day)):
-            self.s['day_loss'][day] = True
-            self.event(now, 'DAILY_LOSS_PAUSE', loss_estimate=losses)
+        if self.cfg.daily_loss_limit is not None and not self.s['day_loss'].get(day):
+            losses = sum((max(D(0), -self.net_liquidation(t)) for t in self.s['trades'].values()
+                          if t['day'] == day), D(0))
+            if losses >= D(self.cfg.daily_loss_limit):
+                self.s['day_loss'][day] = True
+                self.event(now, 'DAILY_LOSS_PAUSE', loss_estimate=losses)
         for trade in self.active():
             if trade['day'] != day:
                 continue
@@ -354,7 +361,7 @@ class Ledger:
             rotation['window'] = (rotation['window'] + [str(net)])[-3:]
             rotation['losses'] = rotation['losses'] + 1 if net < 0 else 0
             reason = ('THREE_NET_LOSSES' if rotation['losses'] >= 3 else
-                      'LAST_THREE_NET_AT_MOST_10' if len(rotation['window']) == 3
+                      'LAST_THREE_NET_AT_MOST_10' if not self.cfg.bse_instruments and len(rotation['window']) == 3
                       and sum(map(D, rotation['window']), D(0)) <= 10 else None)
             self.event(now, 'ROTATION_RESULT', trade=last['id'], symbol=last['symbol'], net=net,
                        last_three=rotation['window'], consecutive_losses=rotation['losses'])
@@ -675,7 +682,7 @@ def summarize(state, now=None):
             codes.append('FEED_DISCONNECTED')
         if not m.get('normal'):
             codes.append('MARKET_NOT_NORMAL')
-        if any(not obj.fresh(symbol, now) for symbol in cfg.instruments):
+        if any(not obj.fresh(symbol, now) for symbol in cfg.books(day)):
             codes.append('QUOTE_STALE')
     if stale:
         codes.append('POSITION_VALUATION_STALE')
@@ -684,15 +691,18 @@ def summarize(state, now=None):
     return dict(mode=cfg.mode, checked_at=now, status='DEGRADED' if codes else 'HEALTHY', codes=codes,
                 implementation_sha256=state['implementation_sha256'], release=state['release'],
                 config_hash=state['config_hash'], initial_cash=cfg.initial_cash,
-                exit_policy=cfg.exit_policy, net_profit_inr=cfg.net_profit_inr,
+                exit_policy='MATCHED_PAIR' if cfg.spread_session(day) else cfg.exit_policy, net_profit_inr=cfg.net_profit_inr,
+                fee_model=cfg.fee_model, spread_session=state.get('spread_session'),
+                cross_exchange_week=SPREAD_WEEK if cfg.bse_instruments else None,
                 net_loss_inr=cfg.net_loss_inr if cfg.exit_policy == 'NET_CASH' else None,
                 price_loss_inr=cfg.price_loss_inr if cfg.exit_policy == 'NET_PROFIT_PRICE_STOP' else None,
-                loss_basis=('PRICE' if cfg.exit_policy == 'NET_PROFIT_PRICE_STOP' else
+                loss_basis=('MATCHED_PAIR' if cfg.spread_session(day) else 'PRICE' if cfg.exit_policy == 'NET_PROFIT_PRICE_STOP' else
                             'NET' if cfg.exit_policy in ('NET_CASH', 'NET_RECOVERY') else 'PRICE_PERCENT'),
                 recycle_entries=cfg.recycle_entries, daily_loss_paused=bool(state['day_loss'].get(day)),
                 policy_history=state.get('policy_history', []),
                 release_history=state.get('release_history', []),
-                entry_policy=cfg.entry_policy, rotation=state.get('rotation'), portfolio=state.get('portfolio'),
+                entry_policy='CROSS_EXCHANGE' if cfg.spread_session(day) else cfg.entry_policy,
+                rotation=state.get('rotation'), portfolio=state.get('portfolio'),
                 heartbeat=state['heartbeat'],
                 trend_settings=cfg.trend_settings,
                 available_cash=str(obj.available()), equity_estimate=str(settled + unrealized),

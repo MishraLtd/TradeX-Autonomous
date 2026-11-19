@@ -175,12 +175,12 @@ class RotationTest(unittest.TestCase):
             replace(self.cfg, exit_policy='NET_CASH')
 
     def test_new_trial_preparation_uses_rotation_and_skips_late_start(self):
-        from execution.paper_trial.upstox import prepare_config
+        from execution.paper_trial.upstox import APPROVED_SYMBOLS, prepare_config
         with patch('execution.paper_trial.upstox.load_instruments', return_value=[]), \
                 patch('execution.paper_trial.upstox.resolve_instruments', return_value=self.cfg.instruments), \
                 patch('execution.paper_trial.upstox.regular_session',
                       side_effect=lambda client, day: day in DATES + ['2026-11-18']):
-            cfg = prepare_config(Mock(), now=stamp(DATES[0], '09:10'))
+            cfg = prepare_config(Mock(), now=stamp(DATES[0], '09:10'), symbols=APPROVED_SYMBOLS)
         self.assertEqual(cfg.entry_policy, 'TREND_PORTFOLIO')
         self.assertEqual(cfg.initial_cash, '100000')
         self.assertIsNone(cfg.per_trade_limit)

@@ -33,7 +33,7 @@ install -d -m 700 -o tradex -g tradex "$state"
 cd "$candidate/Phase2A_Execution"
 if [[ ! -f $state/config.json ]]; then
   runuser -u tradex -- env TRADEX_MODE=upstox-paper TRADEX_VAULT_URL="$TRADEX_VAULT_URL" \
-    "$python" -m execution.paper_trial --config "$state/config.json" --db "$state/trial.sqlite" prepare
+    "$python" -m execution.paper_trial --config "$state/config.json" --db "$state/trial.sqlite" prepare --cross-exchange-week
 fi
 "$python" - <<'PY'
 from execution.paper_trial.config import TrialConfig, stamp

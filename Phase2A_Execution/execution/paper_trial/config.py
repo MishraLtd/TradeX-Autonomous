@@ -13,6 +13,10 @@ IST = ZoneInfo('Asia/Kolkata')
 MODE = 'UPSTOX_DATA_LOCAL_PAPER'
 LEGACY_FEES = 'upstox-basic-nse-intraday-estimate-2026-11-10'
 CURRENT_FEES = 'upstox-basic-nse-intraday-estimate-2026-11-11'
+ZERODHA_FEES = 'zerodha-equity-intraday-nse-bse-2026-11-19'
+SPREAD_WEEK = ('2026-11-16', '2026-11-20')
+EXTRA_LISTINGS = {'BOSCHLTD': 'INE323A01026', 'POWERINDIA': 'INE07Y701011',
+                  'MRF': 'INE883A01011', 'PTCIL': 'INE596F01018'}
 
 
 def implementation_fingerprint():
@@ -79,18 +83,29 @@ class TrialConfig:
     entry_policy: str = 'FIXED_SCHEDULE'
     trend_settings: dict | None = None
     continuous: bool = False
+    bse_instruments: dict | None = None
+
+    def spread_session(self, day):
+        return self.bse_instruments is not None and SPREAD_WEEK[0] <= day <= SPREAD_WEEK[1]
+
+    def books(self, day):
+        if self.spread_session(day):
+            return {**self.instruments, **{'BSE:' + s: row for s, row in self.bse_instruments.items()}}
+        return self.instruments
 
     def session_candidate(self, day):
         return day in self.sessions or (self.continuous and day > self.sessions[-1])
 
     def __post_init__(self):
-        if self.mode != MODE or self.fee_model not in (LEGACY_FEES, CURRENT_FEES):
+        dual = self.bse_instruments is not None
+        if self.mode != MODE or self.fee_model not in (LEGACY_FEES, CURRENT_FEES, ZERODHA_FEES):
             raise ValueError('Only the reviewed local paper mode and fee estimate are supported')
         if self.exit_policy not in ('FIXED_PERCENT', 'NET_CASH', 'NET_PROFIT_PRICE_STOP', 'NET_RECOVERY') or type(self.recycle_entries) is not bool:
             raise ValueError('Invalid paper exit policy')
         if self.recycle_entries and self.exit_policy == 'FIXED_PERCENT':
             raise ValueError('Recycling requires the reviewed net-cash exit policy')
-        if any(D(v) <= 0 for v in (self.net_profit_inr, self.net_loss_inr, self.price_loss_inr)):
+        if (D(self.net_profit_inr) < 0 or (not dual and D(self.net_profit_inr) == 0)
+                or any(D(v) <= 0 for v in (self.net_loss_inr, self.price_loss_inr))):
             raise ValueError('Positive whole-trade profit and loss thresholds required')
         portfolio = self.entry_policy == 'TREND_PORTFOLIO'
         if type(self.continuous) is not bool or (self.continuous and not portfolio):
@@ -107,12 +122,17 @@ class TrialConfig:
             from .trend import SETTINGS, LEGACY_SETTINGS
             if (not self.uses_trend or self.exit_policy != 'NET_RECOVERY'
                     or self.trend_settings not in (SETTINGS, LEGACY_SETTINGS) or self.entry_times
-                    or D(self.net_profit_inr) != (10 if portfolio else 5)):
+                    or D(self.net_profit_inr) != (0 if dual else 10 if portfolio else 5)):
                 raise ValueError('Trend recovery requires the complete reviewed policy settings')
         if self.entry_policy == 'RANDOM_ROTATION' and (self.entry_times or self.exit_policy != 'NET_PROFIT_PRICE_STOP'):
             raise ValueError('Rotation requires no stock entry times and the corrected exit policy')
-        if not 3 <= len(self.instruments) <= 9 or (self.entry_policy == 'FIXED_SCHEDULE' and len(self.entry_times) != len(self.instruments)):
-            raise ValueError('Require three to nine approved NSE equities with matching entry slots')
+        if dual:
+            from .upstox import DUAL_SYMBOLS
+            if (not portfolio or not self.continuous or self.fee_model != ZERODHA_FEES or set(self.instruments) != set(DUAL_SYMBOLS)
+                    or set(self.bse_instruments) != set(self.instruments)):
+                raise ValueError('Cross-exchange profile requires the reviewed portfolio, instruments and charges')
+        elif not 3 <= len(self.instruments) <= 9 or (self.entry_policy == 'FIXED_SCHEDULE' and len(self.entry_times) != len(self.instruments)):
+            raise ValueError('Invalid approved NSE equity allocation')
         keys = set()
         if {row.get('slot') for row in self.instruments.values()} != set(range(len(self.instruments))):
             raise ValueError('Instrument slots must be consecutive from zero')
@@ -121,11 +141,19 @@ class TrialConfig:
                 raise ValueError('Invalid symbol')
             if not re.fullmatch(r'NSE_EQ\|INE[A-Z0-9]{9}', row['key']):
                 raise ValueError('Only NSE cash equity instrument keys are permitted')
-            if row['key'] in keys or not 0 < D(row['tick']) <= 1 or row.get('lot_size') != 1:
+            tick = D(row['tick'])
+            if row['key'] in keys or tick <= 0 or (not dual and tick > 1) or row.get('lot_size') != 1:
                 raise ValueError('Invalid instrument metadata')
             if row.get('mis_eligible') is not True:
                 raise ValueError('Intraday eligibility must be checked')
             keys.add(row['key'])
+            if dual:
+                other = self.bse_instruments[symbol]
+                isin = row['key'].split('|')[1]
+                if (other['key'] != 'BSE_EQ|' + isin or other.get('group') not in ('A', 'B')
+                        or D(other['tick']) <= 0 or other.get('lot_size') != 1 or other.get('mis_eligible') is not True
+                        or EXTRA_LISTINGS.get(symbol, isin) != isin):
+                    raise ValueError('Invalid paired cash-equity listing')
         if len(self.sessions) != 5 or self.sessions != sorted(set(self.sessions)):
             raise ValueError('Exactly five distinct planned sessions, in date order, are required')
         for day in self.sessions:
@@ -161,6 +189,8 @@ class TrialConfig:
     @property
     def fingerprint(self):
         values = asdict(self)
+        if self.bse_instruments is None:
+            values.pop('bse_instruments')
         if not self.continuous:
             values.pop('continuous')
         if self.trend_settings is None:

@@ -1,6 +1,23 @@
 # TradeX Autonomous
 
-For ongoing Upstox paper trading, activate a pinned checkout on the worker with
+## NSE/BSE paper spread trial, 16–20 November 2026
+
+The `profitup` paper worker compares live NSE and BSE top-of-book prices for the same ISIN.
+It buys on the cheaper exchange and sells the same quantity on the other when the
+simulated proceeds exceed both legs' estimated Zerodha intraday charges. Upstox supplies
+the market data. Both fills are simulated locally.
+
+The universe contains SBIN, ITC, HDFCBANK, KLBRENG-B, ADANIENT, BAJFINANCE, PAYTM,
+INDUSINDBK, VEDL, **BOSCHLTD**, **POWERINDIA**, **MRF** and **PTCIL**. Both exchanges
+must have a verified regular session and eligible books. The existing continuous VM
+portfolio accepts the explicit `--cross-exchange-week` upgrade. The next verified
+session after Friday resumes NSE trend entries on the expanded universe and takes
+profit at any positive estimated net amount. The Zerodha fee schedule continues.
+See the [pricing, audit fields and VM activation steps](deploy/CROSS_EXCHANGE.md).
+
+## Previous continuous portfolio
+
+For the previous Upstox paper portfolio, activate a pinned checkout on the worker with
 `sudo bash deploy/azure/upgrade-upstox-greedy.sh "$TRADEX_RELEASE" --continuous`.
 This migrates a flat existing ledger, including a finished five-session trial,
 to the ₹1 lakh volatility portfolio. Each subsequent trading day requires the

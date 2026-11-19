@@ -1,6 +1,9 @@
 # Trend entries and timed recovery: paper trial
 
-On the `profitup` branch fresh trials use `TREND_PORTFOLIO`: ₹1,00,000 virtual
+For the 16–20 November 2026 paper policy and the subsequent trend thresholds, see
+[the cross-exchange runbook](CROSS_EXCHANGE.md).
+
+The previous `profitup` profile uses `TREND_PORTFOLIO`: ₹1,00,000 virtual
 cash, no fixed entry cap and no daily-loss pause. Up to three distinct positions
 share available cash. The net profit trigger is strictly above ₹10 per position,
 after both sides' estimated costs; the recovery trigger stays below −₹5 net.
