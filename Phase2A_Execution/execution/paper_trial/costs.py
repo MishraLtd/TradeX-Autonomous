@@ -1,16 +1,17 @@
-"""Estimated Upstox Basic NSE cash intraday fees, not contract-note reconciliation.
+"""Estimated paper cash-equity intraday charges.
 
 Source: https://upstox.com/brokerage-charges/ (reviewed 2026-11-11).
 Use its explicitly dated March 2026 table, not the older repeated mobile
 table. The legacy schedule remains available for historical trial evidence.
 Intraday has no DP charge. Round to paise per simulated order. Partial fills
 use the difference between cumulative estimates, so caps are not reset.
+Zerodha NSE and BSE A/B intraday schedule: https://zerodha.com/charges/
 """
 from decimal import ROUND_HALF_UP
-from .config import D, price_tick, LEGACY_FEES, CURRENT_FEES
+from .config import D, price_tick, LEGACY_FEES, CURRENT_FEES, ZERODHA_FEES
 
 
-def breakdown(side, turnover, model=LEGACY_FEES):
+def breakdown(side, turnover, model=LEGACY_FEES, venue='NSE'):
     """Unrounded components plus an explicit adjustment to the order total.
 
     This is a per-order estimate. Actual contract-note aggregation/rounding,
@@ -18,14 +19,23 @@ def breakdown(side, turnover, model=LEGACY_FEES):
     """
     if side not in ('BUY', 'SELL') or D(turnover) < 0:
         raise ValueError('Invalid fee input')
-    if model not in (LEGACY_FEES, CURRENT_FEES):
+    if model not in (LEGACY_FEES, CURRENT_FEES, ZERODHA_FEES):
         raise ValueError('Unsupported fee model')
+    if venue not in ('NSE', 'BSE') or (venue == 'BSE' and model != ZERODHA_FEES):
+        raise ValueError('Unsupported exchange tariff')
     value = D(turnover)
-    brokerage = min(D('20'), value * D('0.001'))
-    exchange = value * D('0.0000307' if model == CURRENT_FEES else '0.0000297')
+    brokerage = min(D('20'), value * D('0.0003' if model == ZERODHA_FEES else '0.001'))
     sebi = value * D('0.000001')
-    ipft = value * D('0.000000001' if model == CURRENT_FEES else '0.000001')
-    gst = (brokerage + exchange + ipft) * D('0.18')
+    if model == ZERODHA_FEES:
+        # Zerodha lists the NSE exchange tariff inclusive of IPFT. BSE A/B tariff only.
+        exchange = value * D('0.0000307' if venue == 'NSE' else '0.0000375')
+        ipft = value * D('0.000000001') if venue == 'NSE' else D(0)
+        exchange -= ipft
+        gst = (brokerage + exchange + ipft + sebi) * D('0.18')
+    else:
+        exchange = value * D('0.0000307' if model == CURRENT_FEES else '0.0000297')
+        ipft = value * D('0.000000001' if model == CURRENT_FEES else '0.000001')
+        gst = (brokerage + exchange + ipft) * D('0.18')
     parts = dict(brokerage=brokerage, exchange=exchange, sebi=sebi, ipft=ipft, gst=gst,
                  stamp_duty=value * D('0.00003') if side == 'BUY' else D(0),
                  stt=value * D('0.00025') if side == 'SELL' else D(0), dp=D(0))
@@ -34,12 +44,12 @@ def breakdown(side, turnover, model=LEGACY_FEES):
     return parts
 
 
-def fee(side, turnover, model=LEGACY_FEES):
-    return sum(breakdown(side, turnover, model).values(), D(0)).quantize(D('0.01'))
+def fee(side, turnover, model=LEGACY_FEES, venue='NSE'):
+    return sum(breakdown(side, turnover, model, venue).values(), D(0)).quantize(D('0.01'))
 
 
-def fee_delta(side, before, after, model):
-    old, new = breakdown(side, before, model), breakdown(side, after, model)
+def fee_delta(side, before, after, model, venue='NSE'):
+    old, new = breakdown(side, before, model, venue), breakdown(side, after, model, venue)
     return {key: new[key] - old[key] for key in new}
 
 

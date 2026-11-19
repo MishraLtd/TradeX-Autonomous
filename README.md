@@ -1,12 +1,46 @@
 # TradeX Autonomous
 
-Latest policy: [trend entries and timed recovery](deploy/TREND_RECOVERY.md).
-Entries start from 09:30 IST with confirmed five-minute price direction and
-four-minute cooldowns after each close. Take profit above INR 5 net; a net loss
+## NSE/BSE paper spread trial, 16–20 November 2026
+
+The `profitup` paper worker compares live NSE and BSE top-of-book prices for the same ISIN.
+It buys on the cheaper exchange and sells the same quantity on the other when the
+simulated proceeds exceed both legs' estimated Zerodha intraday charges. Upstox supplies
+the market data. Both fills are simulated locally.
+
+The universe contains SBIN, ITC, HDFCBANK, KLBRENG-B, ADANIENT, BAJFINANCE, PAYTM,
+INDUSINDBK, VEDL, **BOSCHLTD**, **POWERINDIA**, **MRF** and **PTCIL**. Both exchanges
+must have a verified regular session and eligible books. The existing continuous VM
+portfolio accepts the explicit `--cross-exchange-week` upgrade. The next verified
+session after Friday resumes NSE trend entries on the expanded universe and takes
+profit at any positive estimated net amount. The Zerodha fee schedule continues.
+See the [pricing, audit fields and VM activation steps](deploy/CROSS_EXCHANGE.md).
+
+## Previous continuous portfolio
+
+For the previous Upstox paper portfolio, activate a pinned checkout on the worker with
+`sudo bash deploy/azure/upgrade-upstox-greedy.sh "$TRADEX_RELEASE" --continuous`.
+This migrates a flat existing ledger, including a finished five-session trial,
+to the ₹1 lakh volatility portfolio. Each subsequent trading day requires the
+Upstox calendar and instrument checks. The VM's power schedule still applies.
+Verify `continuous: true` in the paper status output. To pause new entries across
+reboots, run `sudo touch /var/lib/tradex/upstox-trial/entries.paused`; the
+worker continues managing exits. Resume with
+`sudo unlink /var/lib/tradex/upstox-trial/entries.paused`.
+
+The `profitup` paper portfolio starts with ₹1,00,000 and supports up to three
+distinct stocks at once. With one eligible signal, it can reserve all available
+cash. Concurrent signals share the available funds, with whole shares and
+entry fees covered. Each stock has its own cooldown and recovery timer.
+Paper shorts reserve their full notional. See [trend entries and timed recovery](deploy/TREND_RECOVERY.md).
+Entries start from 09:30 IST after a 15-minute observed-volatility ranking and confirmed five-minute price direction.
+The ranking score is 60% high-low range plus 40% realised one-minute movement,
+and it selects up to three distinct stocks concurrently.
+four-minute cooldowns for the stock after each close. Take profit above INR 10 net; a net loss
 below INR -5 starts a one-to-two-hour recovery window instead of an immediate
-price stop. The 15:00 square-off and INR 100 daily risk guard override holds.
-Existing trials need the explicit `--trend-recovery` VM upgrade. All trades
-remain local paper simulations; prior balances and history are preserved.
+price stop. The 15:00 square-off overrides holds; this policy has no daily loss cap.
+Existing trials can use the explicit `--volatility-portfolio` VM upgrade from a pinned checkout
+of this branch. Moving from ₹10,000 to ₹1,00,000 adds ₹90,000 to existing cash.
+The upgrade records this funding separately from trading profits and preserves all fills.
 
 The previous policy, retained for historical reports, was:
 

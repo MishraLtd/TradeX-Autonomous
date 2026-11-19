@@ -6,7 +6,10 @@ umask 077
 root=$(cd "$(dirname "$0")/../.." && pwd)
 release=${1:?Supply the full reviewed Git commit SHA}
 expand=${2:-}
-[[ -z $expand || $expand == --expand-universe || $expand == --random-rotation || $expand == --trend-recovery ]] || { echo 'Unknown upgrade option'; exit 1; }
+case "$expand" in
+  ''|--expand-universe|--random-rotation|--trend-recovery|--profitup|--volatility-portfolio|--continuous|--cross-exchange-week) ;;
+  *) echo 'Unknown upgrade option'; exit 1 ;;
+esac
 [[ $release =~ ^[a-f0-9]{40}$ ]] || { echo 'A full Git SHA is required'; exit 1; }
 export GIT_OPTIONAL_LOCKS=0
 [[ $(git -C "$root" rev-parse HEAD) == "$release" ]] || { echo 'Checkout does not match release'; exit 1; }
@@ -18,6 +21,15 @@ set +a
 config=${TRADEX_TRIAL_CONFIG:-/var/lib/tradex/upstox-trial/config.json}
 db=${TRADEX_TRIAL_DB:-/var/lib/tradex/upstox-trial/trial.sqlite}
 [[ -f $config && -f $db ]] || { echo 'Existing config and ledger are required'; exit 1; }
+if [[ $expand == --cross-exchange-week ]]; then
+  python3 - <<'PY'
+from datetime import datetime, time
+from zoneinfo import ZoneInfo
+now = datetime.now(ZoneInfo('Asia/Kolkata'))
+if now.weekday() < 5 and time(9, 10) <= now.time() <= time(15, 15):
+    raise SystemExit('Activate before 09:10 or after 15:15 IST. The running worker is still active.')
+PY
+fi
 previous=$(readlink -f /opt/tradex/current)
 candidate="/opt/tradex/releases/$release"
 [[ $candidate != "$previous" ]] || { echo 'Release already selected; inspect status before repeating an upgrade'; exit 1; }
@@ -45,9 +57,7 @@ runuser -u tradex -- env TRADEX_MODE=upstox-paper TRADEX_VAULT_URL="${TRADEX_VAU
 backup="$(dirname "$db")/policy-upgrades/$release"
 upgrade=("$python" -m execution.paper_trial --config "$config" --db "$db" upgrade-greedy
   --backup-directory "$backup" --expected-implementation "$source_fingerprint" --release "$release")
-if [[ $expand == --expand-universe ]]; then upgrade+=(--expand-universe); fi
-if [[ $expand == --random-rotation ]]; then upgrade+=(--random-rotation); fi
-if [[ $expand == --trend-recovery ]]; then upgrade+=(--trend-recovery); fi
+if [[ -n $expand ]]; then upgrade+=("$expand"); fi
 migration_started=0
 failed() {
   if [[ $migration_started -eq 0 ]]; then
