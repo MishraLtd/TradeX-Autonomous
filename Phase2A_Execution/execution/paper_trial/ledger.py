@@ -15,7 +15,7 @@ import sqlite3
 import secrets
 import time
 
-from .config import D, IST, dumps, stamp, price_tick, implementation_fingerprint, LEGACY_FEES, SPREAD_WEEK
+from .config import D, IST, dumps, stamp, price_tick, implementation_fingerprint, LEGACY_FEES
 from .costs import fee, target, breakdown, fee_delta
 
 
@@ -220,7 +220,7 @@ class Ledger:
                         self.s['sessions'][planned] = 'MISSED'
                     elif self.s['sessions'][planned] == 'RUNNING':
                         self.s['sessions'][planned] = 'FINISHED'
-            planned_today = day in self.cfg.sessions or (self.cfg.continuous and day in self.s['sessions'])
+            planned_today = self.cfg.session_candidate(day) and (day in self.cfg.sessions or (self.cfg.continuous and day in self.s['sessions']))
             allowed = bool(planned_today and market.get('day') == day and market.get('calendar_valid') is True
                            and market.get('normal') is True and market.get('connected') is True
                            and stamp(day, '09:15') <= now < stamp(day, self.cfg.hard_close_time))
@@ -266,6 +266,8 @@ class Ledger:
                     elif allowed:
                         self._fill_entry(slot, fresh, liquidity, now)
             self.s['completed'] = not self.cfg.continuous and now >= stamp(self.cfg.sessions[-1], self.cfg.hard_close_time)
+            if self.cfg.spread_window is not None:
+                self.s['completed'] = now >= stamp(self.cfg.spread_window[1], self.cfg.hard_close_time)
             if now - self.s['last_sample'] >= 60:
                 summary = self.summary(now)
                 self.db.execute('INSERT OR REPLACE INTO equity VALUES (?,?,?)',
@@ -661,8 +663,17 @@ def summarize(state, now=None):
     settled = D(cfg.initial_cash) + D(state['realized_gross']) - D(state['fees'])
     stale = [t['id'] for t in open_trades if not obj.fresh(t['symbol'], now)]
     day = datetime.fromtimestamp(now, IST).date().isoformat()
-    expected = (day in cfg.sessions or day in state['sessions'] or
+    expected = cfg.session_candidate(day) and (day in cfg.sessions or day in state['sessions'] or
                 (cfg.continuous and state['market'].get('day') == day and state['market'].get('error'))) and stamp(day, '09:15') <= now < stamp(day, cfg.hard_close_time)
+    stale_quotes = {}
+    for symbol in cfg.books(day) if expected else ():
+        if not obj.fresh(symbol, now):
+            q = state['quotes'].get(symbol, {})
+            stale_quotes[symbol] = dict(
+                reason='MISSING_QUOTE' if not q else 'QUOTE_AGE_OUT_OF_RANGE',
+                ages={key: now - q[key] if key in q else None for key in ('at', 'received', 'traded')},
+                max_age_seconds=cfg.max_quote_age, live=q.get('live'),
+                stream_id=q.get('stream_id'))
     codes = []
     if not 0 <= now - state['heartbeat'] <= 30:
         codes.append('WORKER_STALE')
@@ -682,7 +693,7 @@ def summarize(state, now=None):
             codes.append('FEED_DISCONNECTED')
         if not m.get('normal'):
             codes.append('MARKET_NOT_NORMAL')
-        if any(not obj.fresh(symbol, now) for symbol in cfg.books(day)):
+        if stale_quotes:
             codes.append('QUOTE_STALE')
     if stale:
         codes.append('POSITION_VALUATION_STALE')
@@ -693,7 +704,10 @@ def summarize(state, now=None):
                 config_hash=state['config_hash'], initial_cash=cfg.initial_cash,
                 exit_policy='MATCHED_PAIR' if cfg.spread_session(day) else cfg.exit_policy, net_profit_inr=cfg.net_profit_inr,
                 fee_model=cfg.fee_model, spread_session=state.get('spread_session'),
-                cross_exchange_week=SPREAD_WEEK if cfg.bse_instruments else None,
+                cross_exchange_week=cfg.spread_dates if cfg.bse_instruments else None,
+                spread_window=cfg.spread_window, stale_quotes=stale_quotes,
+                entry_schedule_status=('COMPLETED' if day > cfg.spread_window[1] or now >= stamp(cfg.spread_window[1], cfg.hard_close_time)
+                                       else 'WAITING_FOR_START' if day < cfg.spread_window[0] else 'WITHIN_WINDOW') if cfg.spread_window else 'LEGACY',
                 net_loss_inr=cfg.net_loss_inr if cfg.exit_policy == 'NET_CASH' else None,
                 price_loss_inr=cfg.price_loss_inr if cfg.exit_policy == 'NET_PROFIT_PRICE_STOP' else None,
                 loss_basis=('MATCHED_PAIR' if cfg.spread_session(day) else 'PRICE' if cfg.exit_policy == 'NET_PROFIT_PRICE_STOP' else
@@ -701,7 +715,7 @@ def summarize(state, now=None):
                 recycle_entries=cfg.recycle_entries, daily_loss_paused=bool(state['day_loss'].get(day)),
                 policy_history=state.get('policy_history', []),
                 release_history=state.get('release_history', []),
-                entry_policy='CROSS_EXCHANGE' if cfg.spread_session(day) else cfg.entry_policy,
+                entry_policy='CROSS_EXCHANGE' if cfg.spread_session(day) else 'PAUSED_OUTSIDE_SPREAD_WINDOW' if cfg.spread_window else cfg.entry_policy,
                 rotation=state.get('rotation'), portfolio=state.get('portfolio'),
                 heartbeat=state['heartbeat'],
                 trend_settings=cfg.trend_settings,

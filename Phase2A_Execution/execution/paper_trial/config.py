@@ -84,9 +84,14 @@ class TrialConfig:
     trend_settings: dict | None = None
     continuous: bool = False
     bse_instruments: dict | None = None
+    spread_window: tuple | None = None
+
+    @property
+    def spread_dates(self):
+        return self.spread_window or SPREAD_WEEK
 
     def spread_session(self, day):
-        return self.bse_instruments is not None and SPREAD_WEEK[0] <= day <= SPREAD_WEEK[1]
+        return self.bse_instruments is not None and self.spread_dates[0] <= day <= self.spread_dates[1]
 
     def books(self, day):
         if self.spread_session(day):
@@ -94,10 +99,20 @@ class TrialConfig:
         return self.instruments
 
     def session_candidate(self, day):
+        if self.spread_window is not None:
+            return self.spread_session(day)
         return day in self.sessions or (self.continuous and day > self.sessions[-1])
 
     def __post_init__(self):
         dual = self.bse_instruments is not None
+        if self.spread_window is not None:
+            window = self.spread_window
+            if (not dual or not isinstance(window, (list, tuple)) or len(window) != 2
+                    or any(not isinstance(d, str) or datetime.fromisoformat(d).date().isoformat() != d for d in window)
+                    or window[0] > window[1]):
+                raise ValueError('An ordered pair of ISO dates and paired instruments are required')
+            if not 0 < self.latency_seconds < 2:
+                raise ValueError('Spread latency must be below the two-second pair timeout')
         if self.mode != MODE or self.fee_model not in (LEGACY_FEES, CURRENT_FEES, ZERODHA_FEES):
             raise ValueError('Only the reviewed local paper mode and fee estimate are supported')
         if self.exit_policy not in ('FIXED_PERCENT', 'NET_CASH', 'NET_PROFIT_PRICE_STOP', 'NET_RECOVERY') or type(self.recycle_entries) is not bool:
@@ -189,6 +204,8 @@ class TrialConfig:
     @property
     def fingerprint(self):
         values = asdict(self)
+        if self.spread_window is None:
+            values.pop('spread_window')
         if self.bse_instruments is None:
             values.pop('bse_instruments')
         if not self.continuous:

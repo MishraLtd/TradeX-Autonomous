@@ -39,6 +39,8 @@ def main(argv=None):
     migration.add_argument('--volatility-portfolio', action='store_true')
     migration.add_argument('--continuous', action='store_true')
     migration.add_argument('--cross-exchange-week', action='store_true')
+    migration.add_argument('--spread-start')
+    migration.add_argument('--spread-end')
     args = parser.parse_args(argv)
     # This entry point has no --live option and refuses a live worker env even
     # for prepare. It cannot instantiate the legacy Kite execution path.
@@ -59,7 +61,8 @@ def main(argv=None):
                             expand_universe=args.expand_universe, random_rotation=args.random_rotation,
                             trend_recovery=args.trend_recovery, profitup=args.profitup,
                             volatility_portfolio=args.volatility_portfolio, continuous=args.continuous,
-                            cross_exchange_week=args.cross_exchange_week)))
+                            cross_exchange_week=args.cross_exchange_week,
+                            spread_start=args.spread_start, spread_end=args.spread_end)))
         return 0
     cfg = TrialConfig.load(args.config)
     if args.command == 'run':

@@ -7,9 +7,17 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 release=${1:?Supply the full reviewed Git commit SHA}
 expand=${2:-}
 case "$expand" in
-  ''|--expand-universe|--random-rotation|--trend-recovery|--profitup|--volatility-portfolio|--continuous|--cross-exchange-week) ;;
+  ''|--expand-universe|--random-rotation|--trend-recovery|--profitup|--volatility-portfolio|--continuous|--cross-exchange-week|--cross-exchange-window) ;;
   *) echo 'Unknown upgrade option'; exit 1 ;;
 esac
+spread_args=()
+if [[ $expand == --cross-exchange-window ]]; then
+  [[ $# -eq 4 ]] || { echo 'Supply release, --cross-exchange-window, start date and end date'; exit 1; }
+  spread_args=(--spread-start "${3:?Supply start date YYYY-MM-DD}" --spread-end "${4:?Supply end date YYYY-MM-DD}")
+  expand=--cross-exchange-week
+elif [[ $# -gt 2 ]]; then
+  echo 'Unexpected extra arguments'; exit 1
+fi
 [[ $release =~ ^[a-f0-9]{40}$ ]] || { echo 'A full Git SHA is required'; exit 1; }
 export GIT_OPTIONAL_LOCKS=0
 [[ $(git -C "$root" rev-parse HEAD) == "$release" ]] || { echo 'Checkout does not match release'; exit 1; }
@@ -58,6 +66,7 @@ backup="$(dirname "$db")/policy-upgrades/$release"
 upgrade=("$python" -m execution.paper_trial --config "$config" --db "$db" upgrade-greedy
   --backup-directory "$backup" --expected-implementation "$source_fingerprint" --release "$release")
 if [[ -n $expand ]]; then upgrade+=("$expand"); fi
+upgrade+=("${spread_args[@]}")
 migration_started=0
 failed() {
   if [[ $migration_started -eq 0 ]]; then

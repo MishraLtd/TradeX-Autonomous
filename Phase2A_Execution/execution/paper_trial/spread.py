@@ -7,30 +7,44 @@ MAX_BOOK_SKEW = 0.5
 PAIR_TIMEOUT = 2.0
 
 
-def current_books(book, symbol, now, stream):
+def current_books(book, symbol, now, stream, diagnostics=None):
     quotes = {v: book.s['quotes'].get(k) for v, k in (('NSE', symbol), ('BSE', 'BSE:' + symbol))}
-    for q in quotes.values():
-        if (not q or not stream or not q.get('live') or q.get('stream_id') != stream
-                or not all(0 <= now - q[k] <= MAX_BOOK_AGE for k in ('at', 'received'))
-                or not 0 <= now - q['traded'] <= book.cfg.max_quote_age):
+    for venue, q in quotes.items():
+        reason = ('MISSING_BOOK' if not q else
+                  'STREAM_MISMATCH' if not stream or q.get('stream_id') != stream else
+                  'SNAPSHOT_NOT_LIVE' if not q.get('live') else
+                  'BOOK_STALE' if not all(0 <= now - q[k] <= MAX_BOOK_AGE for k in ('at', 'received')) else
+                  'LAST_TRADE_STALE' if not 0 <= now - q['traded'] <= book.cfg.max_quote_age else None)
+        if reason:
+            if diagnostics is not None:
+                diagnostics.update(detail=reason, venue=venue)
             return None
     if abs(quotes['NSE']['at'] - quotes['BSE']['at']) > MAX_BOOK_SKEW:
+        if diagnostics is not None:
+            diagnostics.update(detail='BOOK_TIMESTAMP_SKEW')
         return None
     return quotes
 
 
-def quote_pair(cfg, symbol, books, buy_venue, cash, quantity_limit=None):
+def quote_pair(cfg, symbol, books, buy_venue, cash, quantity_limit=None, diagnostics=None):
+    def reject(reason):
+        if diagnostics is not None:
+            diagnostics['detail'] = reason
+        return None
     sell_venue = 'BSE' if buy_venue == 'NSE' else 'NSE'
     buy, sell = books[buy_venue], books[sell_venue]
     ask, bid = D(buy['ask']), D(sell['bid'])
+    if diagnostics is not None:
+        diagnostics.update(buy_venue=buy_venue, sell_venue=sell_venue,
+                           ask=str(ask), bid=str(bid), cash=str(cash), quantity_limit=quantity_limit)
     if bid <= ask:
-        return None
+        return reject('NO_RAW_SPREAD')
     ticks = {'NSE': cfg.instruments[symbol]['tick'], 'BSE': cfg.bse_instruments[symbol]['tick']}
     slip = D(cfg.slippage_bps) / 10000
     buy_price = price_tick(ask * (1 + slip), ticks[buy_venue], True)
     sell_price = price_tick(bid * (1 - slip), ticks[sell_venue], False)
     if sell_price <= buy_price:
-        return None
+        return reject('SPREAD_LOST_TO_SLIPPAGE_OR_TICKS')
     max_qty = min(int(D(min(buy['ask_qty'], sell['bid_qty'])) * D(cfg.depth_participation)),
                   int(cash / sell_price))
     if quantity_limit is not None:
@@ -46,13 +60,15 @@ def quote_pair(cfg, symbol, books, buy_venue, cash, quantity_limit=None):
         else:
             hi = mid - 1
     if not lo:
-        return None
+        return reject('INSUFFICIENT_DEPTH' if int(D(min(buy['ask_qty'], sell['bid_qty'])) * D(cfg.depth_participation)) < 1 else 'INSUFFICIENT_CASH')
     buy_fee = fee('BUY', lo * buy_price, cfg.fee_model, buy_venue)
     sell_fee = fee('SELL', lo * sell_price, cfg.fee_model, sell_venue)
     gross = (sell_price - buy_price) * lo
     net = gross - buy_fee - sell_fee
+    if diagnostics is not None:
+        diagnostics.update(quantity=lo, gross=str(gross), fees=str(buy_fee + sell_fee), net=str(net))
     if net <= 0:
-        return None
+        return reject('NON_POSITIVE_NET_AFTER_FEES')
     return dict(buy_venue=buy_venue, sell_venue=sell_venue, ask=ask, bid=bid, raw_gap=bid - ask,
                 buy_price=buy_price, sell_price=sell_price, quantity=lo, buy_fee=buy_fee, sell_fee=sell_fee,
                 gross=gross, net=net, budget=sell_price * lo + buy_fee + sell_fee,
@@ -112,26 +128,39 @@ def step(book, now, day, allowed, fresh):
             raise ValueError('Cross-exchange activation requires a flat portfolio without pending entries')
         symbol = slot['symbol']
         reason = None
+        diagnostics = {}
         if not permitted or slot['stream_id'] != stream or slot['day'] != day:
             reason = 'PAIR_SESSION_UNAVAILABLE'
         elif now >= slot['expires']:
             reason = 'PAIR_EXPIRED'
+            diagnostics.update(detail=slot.get('last_wait', 'DEADLINE_REACHED'),
+                               last_wait_at=slot.get('last_wait_at'))
         elif now >= slot['after']:
-            quotes = current_books(book, symbol, now, stream)
-            if not quotes or any(q['at'] < slot['after'] or q['at'] <= slot['signal']['book_at'][v]
-                                 for v, q in quotes.items()):
+            quotes = current_books(book, symbol, now, stream, diagnostics)
+            if not quotes:
+                slot.update(last_wait=diagnostics['detail'], last_wait_at=now)
+                continue
+            if any(q['at'] < slot['after'] or q['at'] <= slot['signal']['book_at'][v] for v, q in quotes.items()):
+                slot.update(last_wait='WAITING_FOR_NEW_BOOKS_AFTER_LATENCY', last_wait_at=now)
                 continue
             budget = min(D(slot['budget']), book.available(exclude_slot=slot['id']))
-            pair = quote_pair(book.cfg, symbol, quotes, slot['signal']['buy_venue'], budget, slot['signal']['quantity'])
+            pair = quote_pair(book.cfg, symbol, quotes, slot['signal']['buy_venue'], budget, slot['signal']['quantity'], diagnostics)
             consumed = stats['consumed'].setdefault(symbol, {})
             if pair and unused_depth(consumed, quotes, pair['buy_venue']):
                 record_fill(book, slot, pair, quotes, now, consumed)
                 stats['matched'] += 1
                 continue
+            if pair:
+                diagnostics['detail'] = 'DEPTH_ALREADY_CONSUMED'
             reason = 'PAIR_NO_LONGER_EXECUTABLE'
         if reason:
-            slot.update(state='SKIPPED', reason=reason)
-            book.event(now, 'ENTRY_SKIPPED', slot=slot['id'], reason=reason)
+            diagnostics.update(elapsed_seconds=now - slot['at'], latency_seconds=book.cfg.latency_seconds,
+                               books={v: {**{k: q.get(k) for k in ('bid', 'ask', 'bid_qty', 'ask_qty', 'live', 'stream_id')},
+                                          'ages': {k: now - q[k] if k in q else None for k in ('at', 'received', 'traded')}}
+                                      for v, key in (('NSE', symbol), ('BSE', 'BSE:' + symbol))
+                                      for q in [book.s['quotes'].get(key, {})]})
+            slot.update(state='SKIPPED', reason=reason, diagnostics=diagnostics)
+            book.event(now, 'ENTRY_SKIPPED', slot=slot['id'], symbol=symbol, reason=reason, diagnostics=diagnostics)
     if not permitted or not fresh:
         return
     occupied = {s['symbol'] for s in book.pending() + book.active()}

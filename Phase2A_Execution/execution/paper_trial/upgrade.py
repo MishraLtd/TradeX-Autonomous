@@ -15,9 +15,11 @@ from .ledger import read_state
 from .report import snapshot, write_private
 
 
-def upgrade(config_path, db_path, backup_dir, expected_implementation, release, now=None, check=False, expand_universe=False, random_rotation=False, trend_recovery=False, profitup=False, volatility_portfolio=False, continuous=False, cross_exchange_week=False):
+def upgrade(config_path, db_path, backup_dir, expected_implementation, release, now=None, check=False, expand_universe=False, random_rotation=False, trend_recovery=False, profitup=False, volatility_portfolio=False, continuous=False, cross_exchange_week=False, spread_start=None, spread_end=None):
     now = time.time() if now is None else now
     config_path, db_path, backup_dir = map(Path, (config_path, db_path, backup_dir))
+    if (spread_start is not None or spread_end is not None) and not (cross_exchange_week and spread_start and spread_end):
+        raise ValueError('Spread dates require both endpoints and the cross-exchange upgrade')
     if not re.fullmatch(r'[a-f0-9]{64}', expected_implementation) or not re.fullmatch(r'[a-f0-9]{40}', release):
         raise ValueError('Reviewed source fingerprint and full target release SHA are required')
     # Same lifetime lock as the worker. Holding it across backup, config replace
@@ -46,7 +48,7 @@ def upgrade(config_path, db_path, backup_dir, expected_implementation, release, 
             if any((continuous, volatility_portfolio, profitup, trend_recovery, random_rotation, expand_universe)):
                 raise ValueError('Select the cross-exchange profile by itself')
             day = datetime.fromtimestamp(now, IST).date().isoformat()
-            if cfg.session_candidate(day) and stamp(day, '09:10') <= now <= stamp(day, '15:15'):
+            if datetime.fromtimestamp(now, IST).weekday() < 5 and stamp(day, '09:10') <= now <= stamp(day, '15:15'):
                 raise ValueError('Activate before 09:10 or after 15:15 IST with the portfolio flat')
             if not cfg.continuous or cfg.entry_policy != 'TREND_PORTFOLIO':
                 raise ValueError('Cross-exchange upgrade requires the running continuous paper portfolio')
@@ -83,7 +85,10 @@ def upgrade(config_path, db_path, backup_dir, expected_implementation, release, 
             if any(resolved[s]['key'] != row['key'] for s, row in cfg.instruments.items()):
                 raise ValueError('Existing NSE security identity changed')
             new_cfg = replace(cfg, instruments=resolved, bse_instruments=bse_listings(resolved),
-                              fee_model=ZERODHA_FEES, net_profit_inr='0')
+                              fee_model=ZERODHA_FEES, net_profit_inr='0',
+                              spread_window=(spread_start, spread_end) if spread_start else cfg.spread_window)
+            if spread_start and now >= stamp(spread_end, cfg.hard_close_time):
+                raise ValueError('The requested spread window has already ended')
             policy_change = new_cfg.fingerprint != cfg.fingerprint
             universe_change = not cfg.bse_instruments
         if expand_universe or random_rotation or trend_recovery or profitup or volatility_portfolio:
@@ -119,8 +124,7 @@ def upgrade(config_path, db_path, backup_dir, expected_implementation, release, 
                       instruments=new_cfg.instruments, entry_times=new_cfg.entry_times,
                       universe_effective_date=new_cfg.universe_effective_date, entry_policy=new_cfg.entry_policy)
         if cross_exchange_week:
-            from .config import SPREAD_WEEK
-            result.update(cross_exchange_week=SPREAD_WEEK, bse_instruments=new_cfg.bse_instruments, fee_model=new_cfg.fee_model)
+            result.update(cross_exchange_week=new_cfg.spread_dates, bse_instruments=new_cfg.bse_instruments, fee_model=new_cfg.fee_model)
         if check:
             return result
         backup_dir.mkdir(mode=0o700, parents=True, exist_ok=False)
