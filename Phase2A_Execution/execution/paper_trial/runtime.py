@@ -7,11 +7,12 @@ from queue import Queue, Empty, Full
 import signal
 import threading
 import time
+from uuid import uuid4
 
 from .config import IST, stamp
 from .ledger import Ledger
 from .report import report, daily_report, write_private
-from .upstox import DataError, Decoder, regular_session, resolve_instruments, load_instruments
+from .upstox import DataError, Decoder, regular_session, resolve_instruments, load_instruments, bse_listings
 
 
 class Receiver(threading.Thread):
@@ -36,23 +37,29 @@ class Receiver(threading.Thread):
         import websocket
         delay = 1
         prepared_day = None
+        closed_day = None
         while not self.stop.is_set():
             now = time.time()
             day = datetime.fromtimestamp(now, IST).date().isoformat()
-            self.update(day=day)
-            if day not in self.cfg.sessions or not stamp(day, '09:10') <= now < stamp(day, self.cfg.hard_close_time):
+            if self.status()['day'] != day:
+                self.update(day=day, calendar_valid=False, connected=False, normal=False, error=None)
+            if closed_day == day or not self.cfg.session_candidate(day) or not stamp(day, '09:10') <= now < stamp(day, self.cfg.hard_close_time):
                 self.update(connected=False, normal=False)
                 self.stop.wait(1)
                 continue
             ws = None
             try:
+                paired = self.cfg.spread_session(day)
                 if prepared_day != day:
                     self.update(calendar_valid=False)
-                    if not regular_session(self.client, day):
+                    if not regular_session(self.client, day) or (paired and not regular_session(self.client, day, 'BSE')):
+                        if self.cfg.continuous and day not in self.cfg.sessions:
+                            closed_day = day
+                            continue
                         raise DataError('PLANNED_SESSION_CHANGED')
                     symbols = sorted(self.cfg.instruments, key=lambda s: self.cfg.instruments[s]['slot'])
                     instruments = resolve_instruments(symbols, load_instruments('NSE.json.gz'), load_instruments('NSE_MIS.json.gz'))
-                    if instruments != self.cfg.instruments:
+                    if instruments != self.cfg.instruments or (paired and bse_listings(instruments) != self.cfg.bse_instruments):
                         raise DataError('INSTRUMENT_METADATA_CHANGED')
                     prepared_day = day
                 self.update(calendar_valid=True)
@@ -60,11 +67,12 @@ class Receiver(threading.Thread):
                 ws = websocket.create_connection(self.client.websocket_url(), timeout=5,
                                                   enable_multithread=True, redirect_limit=0)
                 ws.settimeout(1)
-                decoder = Decoder(self.cfg.instruments)
+                decoder = Decoder(self.cfg.books(day))
                 with self.guard:
                     self.generation += 1
                     generation = self.generation
-                    self.state.update(connected=True, normal=False, error=None)
+                    self.state.update(connected=True, normal=False, stream_id=None, error=None)
+                stream_id = None
                 ws.send(json.dumps(dict(guid='tradex-paper', method='sub', data=dict(
                     mode='full', instrumentKeys=list(decoder.symbols)))).encode(), opcode=websocket.ABNF.OPCODE_BINARY)
                 last_frame = last_ping = connected_at = time.monotonic()
@@ -84,8 +92,16 @@ class Receiver(threading.Thread):
                     if opcode != websocket.ABNF.OPCODE_BINARY:
                         continue
                     received = time.time()
+                    previously_normal = decoder.normal
                     quotes = decoder.decode(data, received)
-                    self.update(normal=decoder.normal)
+                    if decoder.normal and not previously_normal:
+                        stream_id = uuid4().hex
+                    elif not decoder.normal:
+                        stream_id = None
+                    if paired:
+                        for quote in quotes.values():
+                            quote['stream_id'] = stream_id
+                    self.update(normal=decoder.normal, stream_id=stream_id)
                     try:
                         self.messages.put_nowait((generation, quotes))
                     except Full:
@@ -125,6 +141,7 @@ def run(config, db_path, client, report_dir):
     ledger = Ledger(db_path, config)
     receiver = Receiver(client, config, stop)
     receiver.start()
+    entry_pause = Path(db_path).parent / 'entries.paused'
     last_report = 0
     base_reconnects = ledger.s['reconnects']
     seen_reconnects = 0
@@ -136,6 +153,7 @@ def run(config, db_path, client, report_dir):
             except Empty:
                 pass
             now, market = time.time(), receiver.status()
+            market['entries_paused'] = config.continuous and entry_pause.exists()
             if generation != market['generation'] or not market['connected']:
                 quotes = {}
             receipt = os.environ.get('TRADEX_TRIAL_LEASE_RECEIPT')
@@ -152,7 +170,7 @@ def run(config, db_path, client, report_dir):
             if now - last_report >= 60:
                 result = report(db_path, now)
                 write_private(Path(report_dir) / 'latest.json', result)
-                for day in config.sessions:
+                for day in set(config.sessions).union(ledger.s['sessions']):
                     daily_path = Path(report_dir) / (day + '.json')
                     if now >= stamp(day, config.hard_close_time) and not daily_path.exists():
                         # The DB always remains the authoritative audit trail.

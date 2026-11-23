@@ -33,7 +33,7 @@ install -d -m 700 -o tradex -g tradex "$state"
 cd "$candidate/Phase2A_Execution"
 if [[ ! -f $state/config.json ]]; then
   runuser -u tradex -- env TRADEX_MODE=upstox-paper TRADEX_VAULT_URL="$TRADEX_VAULT_URL" \
-    "$python" -m execution.paper_trial --config "$state/config.json" --db "$state/trial.sqlite" prepare
+    "$python" -m execution.paper_trial --config "$state/config.json" --db "$state/trial.sqlite" prepare --cross-exchange-week
 fi
 "$python" - <<'PY'
 from execution.paper_trial.config import TrialConfig, stamp
@@ -41,7 +41,7 @@ from execution.paper_trial.MarketDataFeed_pb2 import FeedResponse
 import websocket
 import time
 cfg = TrialConfig.load('/var/lib/tradex/upstox-trial/config.json')
-assert cfg.initial_cash == '4000' and cfg.per_trade_limit == '2000' and cfg.max_positions == 3
+assert cfg.entry_policy == 'TREND_PORTFOLIO' and cfg.per_trade_limit is None and cfg.max_positions == 3
 assert time.time() < stamp(cfg.sessions[0], '09:25'), 'Prepared start date has passed; inspect config before proceeding'
 PY
 previous=$(readlink -f /opt/tradex/current)

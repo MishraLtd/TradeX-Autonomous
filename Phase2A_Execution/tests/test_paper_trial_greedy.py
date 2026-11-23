@@ -477,6 +477,9 @@ class UpgradeTest(unittest.TestCase):
         old.pop('universe_effective_date')
         old.pop('entry_policy')
         old.pop('trend_settings')
+        old.pop('continuous')
+        old.pop('bse_instruments')
+        old.pop('spread_window')
         expected_hash = hashlib.sha256(dumps(old).encode()).hexdigest()
         self.assertEqual(TrialConfig(**old).fingerprint, expected_hash)
         state = json.loads(json.dumps(self.original))
@@ -501,6 +504,9 @@ class UpgradeTest(unittest.TestCase):
         corrected.pop('universe_effective_date')
         corrected.pop('entry_policy')
         corrected.pop('trend_settings')
+        corrected.pop('continuous')
+        corrected.pop('bse_instruments')
+        corrected.pop('spread_window')
         corrected_hash = hashlib.sha256(dumps(corrected).encode()).hexdigest()
         state = json.loads(json.dumps(self.original))
         policy_history = [{'kind': 'POLICY_UPGRADE', 'at': self.now - 100}]
@@ -521,7 +527,7 @@ class UpgradeTest(unittest.TestCase):
     def test_universe_expansion_preserves_history_and_only_applies_to_future_sessions(self):
         from execution.paper_trial.upstox import APPROVED_SYMBOLS, APPROVED_TIMES
         resolved = dict(self.cfg.instruments)
-        keys = ['INE338F01015', 'INE423A01024', 'INE296A01032', 'INE982J01020', 'INE095A01012']
+        keys = ['INE338F01015', 'INE423A01024', 'INE296A01032', 'INE982J01020', 'INE095A01012', 'INE205A01025']
         for i, (symbol, key) in enumerate(zip(APPROVED_SYMBOLS[3:], keys), 3):
             resolved[symbol] = dict(key='NSE_EQ|' + key, tick='0.05', lot_size=1, mis_eligible=True, slot=i)
         with patch('execution.paper_trial.upstox.expanded_instruments', return_value=resolved):
@@ -529,7 +535,7 @@ class UpgradeTest(unittest.TestCase):
         self.assertEqual(result['status'], 'UNIVERSE_UPGRADED')
         cfg = TrialConfig.load(self.config_path)
         self.assertEqual(tuple(cfg.entry_times), APPROVED_TIMES)
-        self.assertEqual(len(cfg.instruments), 8)
+        self.assertEqual(len(cfg.instruments), len(APPROVED_SYMBOLS))
         self.assertEqual(cfg.max_positions, 3)
         self.assertEqual(cfg.universe_effective_date, DATES[1])
         state = read_state(self.path)
@@ -547,7 +553,7 @@ class UpgradeTest(unittest.TestCase):
                     template = quotes(t)['SBIN']
                     book.step(t, market(t), {s: dict(template) for s in APPROVED_SYMBOLS})
                     self.assertLessEqual(len(book.active()) + len(book.pending()), 3)
-            roots = [book.s['slots'][DATES[1] + ':' + str(i)] for i in range(8)]
+            roots = [book.s['slots'][DATES[1] + ':' + str(i)] for i in range(len(APPROVED_SYMBOLS))]
             self.assertEqual(tuple(s['symbol'] for s in roots), APPROVED_SYMBOLS)
         finally:
             book.close()
@@ -564,11 +570,11 @@ class UpgradeTest(unittest.TestCase):
         import sqlite3
         from execution.paper_trial.upstox import APPROVED_SYMBOLS, APPROVED_TIMES
         resolved = dict(self.cfg.instruments)
-        keys = ['INE338F01015', 'INE423A01024', 'INE296A01032', 'INE982J01020', 'INE095A01012']
+        keys = ['INE338F01015', 'INE423A01024', 'INE296A01032', 'INE982J01020', 'INE095A01012', 'INE205A01025']
         for i, (symbol, key) in enumerate(zip(APPROVED_SYMBOLS[3:], keys), 3):
             resolved[symbol] = dict(key='NSE_EQ|' + key, tick='0.05', lot_size=1, mis_eligible=True, slot=i)
         if already_expanded:
-            cfg = replace(self.cfg, instruments=resolved, entry_times=APPROVED_TIMES,
+            cfg = replace(self.cfg, instruments={s: resolved[s] for s in APPROVED_SYMBOLS[:8]}, entry_times=APPROVED_TIMES[:8],
                           exit_policy='NET_PROFIT_PRICE_STOP', fee_model=CURRENT_FEES, recycle_entries=True)
             state = read_state(self.path)
             state.update(config=asdict(cfg), config_hash=cfg.fingerprint)
@@ -582,7 +588,7 @@ class UpgradeTest(unittest.TestCase):
         after = read_state(self.path)
         self.assertEqual(cfg.entry_policy, 'RANDOM_ROTATION')
         self.assertFalse(cfg.entry_times)
-        self.assertEqual(len(cfg.instruments), 8)
+        self.assertEqual(len(cfg.instruments), len(APPROVED_SYMBOLS))
         for key in ('trades', 'fees', 'realized_gross', 'sessions', 'slots'):
             self.assertEqual(after[key], before[key])
         self.assertEqual(read_state(self.base / 'backup/trial.sqlite'), before)

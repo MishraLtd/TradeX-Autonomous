@@ -55,7 +55,7 @@ def report(path, now=None):
         model = trade.get('fee_model', LEGACY_FEES)
         before = exit_turnovers.get(trade['id'], D(0)) if fill['leg'] == 'EXIT' else D(0)
         after = before + D(fill['price']) * fill['quantity']
-        parts = fee_delta(fill['side'], before, after, model)
+        parts = fee_delta(fill['side'], before, after, model, fill.get('venue', 'NSE'))
         fill['fee_components'] = {k: str(v) for k, v in parts.items()}
         fill['fee_model'] = model
         if fill['leg'] == 'EXIT':
@@ -69,16 +69,17 @@ def report(path, now=None):
         policy = trade.get('exit_policy', 'FIXED_PERCENT')
         opening, closing_side = ('BUY', 'SELL') if trade['direction'] == 'LONG' else ('SELL', 'BUY')
         trade['entry_fee_components'] = {k: str(v) for k, v in breakdown(
-            opening, D(trade['entry_price']) * trade['quantity'], model).items()}
+            opening, D(trade['entry_price']) * trade['quantity'], model, trade.get('entry_venue', 'NSE')).items()}
         turnover = D(trade['exit_turnover'])
         quote = state['quotes'].get(trade['symbol'])
         if trade['remaining'] and quote:
             turnover += valuation.exit_price(trade, quote) * trade['remaining']
-        trade['estimated_exit_fee_components'] = {k: str(v) for k, v in breakdown(closing_side, turnover, model).items()}
-        trade['estimated_total_fees'] = str(D(trade['entry_fees']) + fee(closing_side, turnover, model))
+        exit_venue = trade.get('exit_venue', 'NSE')
+        trade['estimated_exit_fee_components'] = {k: str(v) for k, v in breakdown(closing_side, turnover, model, exit_venue).items()}
+        trade['estimated_total_fees'] = str(D(trade['entry_fees']) + fee(closing_side, turnover, model, exit_venue))
         trade['net_pnl_estimate'] = str(valuation.net_liquidation(trade))
         trade['gross_pnl_estimate'] = str(valuation.gross_liquidation(trade))
-        trade['loss_basis'] = ('PRICE' if policy == 'NET_PROFIT_PRICE_STOP' else
+        trade['loss_basis'] = ('MATCHED_PAIR' if policy == 'MATCHED_PAIR' else 'PRICE' if policy == 'NET_PROFIT_PRICE_STOP' else
                                'NET' if policy in ('NET_CASH', 'NET_RECOVERY') else 'PRICE_PERCENT')
         trade['valuation_fresh'] = not trade['remaining'] or valuation.fresh(trade['symbol'], now)
         entry_policy = trade.get('entry_policy', 'FIXED_SCHEDULE')
@@ -93,11 +94,15 @@ def report(path, now=None):
     peak, drawdown = D(state['config']['initial_cash']), D(0)
     for row in samples:
         if not row['stale']:
-            peak = max(peak, D(row['equity']))
-            drawdown = max(drawdown, peak - D(row['equity']))
+            # Compare all samples on the same funding basis without changing the ledger.
+            later_funding = sum((D(p.get('capital_adjustment', 0)) for p in state.get('policy_history', [])
+                                 if p['at'] > row['at']), D(0))
+            equity = D(row['equity']) + later_funding
+            peak = max(peak, equity)
+            drawdown = max(drawdown, peak - equity)
     expected_seconds = 0
     from .config import stamp
-    for day in state['config']['sessions']:
+    for day in set(state['config']['sessions']).union(state['sessions']):
         expected_seconds += max(0, min(now, stamp(day, '15:10')) - stamp(day, '09:15'))
     result.update(
         report_schema=2, generated_at=now, assumptions=state['config'],

@@ -17,7 +17,7 @@ from urllib.error import HTTPError
 from urllib.parse import urlsplit
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 
-from .config import D, IST, TrialConfig, stamp, CURRENT_FEES
+from .config import D, IST, TrialConfig, stamp, CURRENT_FEES, ZERODHA_FEES, EXTRA_LISTINGS, SPREAD_WEEK
 
 API = 'https://api.upstox.com'
 ASSETS = 'https://assets.upstox.com/market-quote/instruments/exchange/'
@@ -85,13 +85,13 @@ class DataClient:
             raise DataError('INVALID_MARKET_STREAM_URL')
         return url  # One use, in memory only. Never print/persist it.
 
-    def timings(self, day):
-        if datetime.fromisoformat(day).date().isoformat() != day:
+    def timings(self, day, exchange='NSE'):
+        if exchange not in ('NSE', 'BSE') or datetime.fromisoformat(day).date().isoformat() != day:
             raise ValueError('Invalid date')
         data = self._get('/v2/market/timings/' + day)
         if not isinstance(data, list):
             raise DataError('INVALID_MARKET_CALENDAR')
-        rows = [r for r in data if r.get('exchange') == 'NSE']
+        rows = [r for r in data if r.get('exchange') == exchange]
         if not rows:
             return None
         if len(rows) != 1:
@@ -106,15 +106,15 @@ class DataClient:
             raise DataError('INVALID_MARKET_CALENDAR') from None
 
 
-def regular_session(client, day):
-    timing = client.timings(day)
+def regular_session(client, day, exchange='NSE'):
+    timing = client.timings(day, exchange)
     # This experiment excludes exceptional shortened/evening sessions. Never
     # substitute weekday arithmetic for the provider's exchange calendar.
     return bool(timing and timing[0] <= stamp(day, '09:15') and timing[1] >= stamp(day, '15:10'))
 
 
 def load_instruments(name):
-    if name not in ('NSE.json.gz', 'NSE_MIS.json.gz'):
+    if name not in ('NSE.json.gz', 'NSE_MIS.json.gz', 'BSE.json.gz', 'BSE_MIS.json.gz'):
         raise ValueError('Instrument file not allowed')
     try:
         with build_opener(NoRedirect()).open(ASSETS + name, timeout=10) as response:
@@ -148,31 +148,60 @@ def resolve_instruments(symbols, bod, mis):
     return result
 
 
-APPROVED_SYMBOLS = ('SBIN', 'ITC', 'HDFCBANK', 'KLBRENG-B', 'ADANIENT', 'BAJFINANCE', 'PAYTM', 'INDUSINDBK')
-APPROVED_TIMES = ('09:30', '10:30', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00')
+PREVIOUS_APPROVED_SYMBOLS = ('SBIN', 'ITC', 'HDFCBANK', 'KLBRENG-B', 'ADANIENT', 'BAJFINANCE', 'PAYTM', 'INDUSINDBK')
+APPROVED_SYMBOLS = PREVIOUS_APPROVED_SYMBOLS + ('VEDL',)
+DUAL_SYMBOLS = APPROVED_SYMBOLS + tuple(EXTRA_LISTINGS)
+APPROVED_TIMES = ('09:30', '10:30', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:15')
 
 
 def expanded_instruments():
     return resolve_instruments(APPROVED_SYMBOLS, load_instruments('NSE.json.gz'), load_instruments('NSE_MIS.json.gz'))
 
 
-def prepare_config(client, now=None, symbols=APPROVED_SYMBOLS):
+def bse_listings(instruments):
+    rows = load_instruments('BSE.json.gz')
+    eligible = {r.get('instrument_key') for r in load_instruments('BSE_MIS.json.gz') if r.get('segment') == 'BSE_EQ'}
+    result = {}
+    for symbol, nse in instruments.items():
+        isin = nse['key'].split('|')[1]
+        matches = [r for r in rows if r.get('segment') == 'BSE_EQ' and r.get('isin') == isin
+                   and r.get('instrument_key') == 'BSE_EQ|' + isin and r.get('instrument_type') in ('A', 'B')]
+        if len(matches) != 1 or matches[0]['instrument_key'] not in eligible:
+            raise DataError('BSE_LISTING_OR_INTRADAY_ELIGIBILITY_UNVERIFIED_' + symbol)
+        row = matches[0]
+        result[symbol] = dict(key=row['instrument_key'], tick=str(D(row['tick_size']) / 100),
+                              lot_size=row['lot_size'], group=row['instrument_type'], mis_eligible=True)
+    return result
+
+
+def prepare_config(client, now=None, symbols=None, cross_exchange_week=None):
     now = time.time() if now is None else now
     client.websocket_url()  # Verify streaming authorization; discard signed URL.
+    if symbols is None:
+        symbols = DUAL_SYMBOLS if cross_exchange_week is not False else APPROVED_SYMBOLS
+    if cross_exchange_week is None:
+        cross_exchange_week = tuple(symbols) == DUAL_SYMBOLS
+    if cross_exchange_week and tuple(symbols) != DUAL_SYMBOLS:
+        raise ValueError('Cross-exchange mode requires the complete dual-listed universe')
     instruments = resolve_instruments(symbols, load_instruments('NSE.json.gz'), load_instruments('NSE_MIS.json.gz'))
+    bse = bse_listings(instruments) if cross_exchange_week else None
     sessions = []
     today = datetime.fromtimestamp(now, IST).date()
     for offset in range(30):
         day = (today + timedelta(days=offset)).isoformat()
         if offset == 0 and now >= stamp(day, '09:10'):
             continue
-        if regular_session(client, day):
+        if regular_session(client, day) and (not bse or not SPREAD_WEEK[0] <= day <= SPREAD_WEEK[1]
+                                             or regular_session(client, day, 'BSE')):
             sessions.append(day)
         if len(sessions) == 5:
             from .trend import SETTINGS
             return TrialConfig(instruments=instruments, sessions=sessions, entry_times=(),
-                               entry_policy='TREND_ROTATION', trend_settings=dict(SETTINGS), fee_model=CURRENT_FEES,
-                               net_profit_inr='5', exit_policy='NET_RECOVERY', recycle_entries=True)
+                               entry_policy='TREND_PORTFOLIO', trend_settings=dict(SETTINGS),
+                               fee_model=ZERODHA_FEES if bse else CURRENT_FEES, bse_instruments=bse,
+                               initial_cash='100000', per_trade_limit=None, daily_loss_limit=None,
+                               net_profit_inr='0' if bse else '10', continuous=bool(bse),
+                               exit_policy='NET_RECOVERY', recycle_entries=True)
     raise DataError('FIVE_REGULAR_SESSIONS_NOT_FOUND')
 
 
@@ -205,6 +234,7 @@ class Decoder:
     """
     def __init__(self, instruments):
         self.symbols = {v['key']: k for k, v in instruments.items()}
+        self.segments = {key.split('|')[0] for key in self.symbols}
         self.seen = set()
         self.normal = False
         self.last_frame = 0
@@ -230,14 +260,21 @@ class Decoder:
         self.last_frame = at
         info = message.get('marketInfo')
         if info is not None:
-            segment = info.get('segmentStatus', {}).get('NSE_EQ')
-            cas = info.get('casMarketStatus', {}).get('NSE_EQ', {}).get('status')
-            pre = info.get('preOpenSessionStatus', {}).get('NSE_EQ', {}).get('status')
-            self.normal = segment == 'NORMAL_OPEN' and cas in (None, 'NORMAL_OPEN') and pre in (None, 'PRE_OPEN_END', 'NORMAL_OPEN')
+            was_normal = self.normal
+            self.normal = all(info.get('segmentStatus', {}).get(s) == 'NORMAL_OPEN'
+                              and info.get('casMarketStatus', {}).get(s, {}).get('status') in (None, 'NORMAL_OPEN')
+                              and info.get('preOpenSessionStatus', {}).get(s, {}).get('status') in (None, 'PRE_OPEN_END', 'NORMAL_OPEN')
+                              for s in self.segments)
+            if was_normal and not self.normal:
+                self.seen.clear()
         quotes = {}
         for key, row in message.get('feeds', {}).items():
             if key not in self.symbols:
                 continue
+            symbol = self.symbols[key]
+            if 'BSE_EQ' in self.segments:
+                # A partial/invalid update invalidates this venue's last paired book.
+                quotes[symbol] = dict(at=at)
             full = row.get('fullFeed', {}).get('marketFF', {})
             ltpc, levels = full.get('ltpc', {}), full.get('marketLevel', {}).get('bidAskQuote', [])
             # Do not assemble cached book fragments or treat auction IEP as LTP.
@@ -248,7 +285,6 @@ class Decoder:
                 traded = float(D(ltpc['ltt'])) / 1000
                 if not -2 <= received - traded <= 15 or traded > at + 2:
                     continue
-                symbol = self.symbols[key]
                 quotes[symbol] = dict(at=at, received=received, traded=traded,
                     last=str(D(ltpc['ltp'])), bid=str(D(level['bidP'])), ask=str(D(level['askP'])),
                     bid_qty=int(level.get('bidQ', 0)), ask_qty=int(level.get('askQ', 0)),

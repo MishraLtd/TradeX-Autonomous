@@ -17,8 +17,8 @@ def main(argv=None):
     parser.add_argument('--db', default='/var/lib/tradex/upstox-trial/trial.sqlite')
     sub = parser.add_subparsers(dest='command', required=True)
     prep = sub.add_parser('prepare', help='Check credentials, resolve stocks and freeze the next five sessions')
-    from .upstox import APPROVED_SYMBOLS
-    prep.add_argument('--symbols', nargs='+', default=list(APPROVED_SYMBOLS))
+    prep.add_argument('--symbols', nargs='+')
+    prep.add_argument('--cross-exchange-week', action='store_true', default=None)
     sub.add_parser('run')
     sub.add_parser('health')
     sub.add_parser('status')
@@ -35,6 +35,12 @@ def main(argv=None):
     migration.add_argument('--expand-universe', action='store_true')
     migration.add_argument('--random-rotation', action='store_true')
     migration.add_argument('--trend-recovery', action='store_true')
+    migration.add_argument('--profitup', action='store_true')
+    migration.add_argument('--volatility-portfolio', action='store_true')
+    migration.add_argument('--continuous', action='store_true')
+    migration.add_argument('--cross-exchange-week', action='store_true')
+    migration.add_argument('--spread-start')
+    migration.add_argument('--spread-end')
     args = parser.parse_args(argv)
     # This entry point has no --live option and refuses a live worker env even
     # for prepare. It cannot instantiate the legacy Kite execution path.
@@ -43,17 +49,20 @@ def main(argv=None):
     if args.command == 'prepare':
         if Path(args.config).exists() or Path(args.db).exists():
             parser.error('Preparation is create-only; existing trial/config must be preserved')
-        cfg = prepare_config(DataClient(analytics_token()), symbols=args.symbols)
+        cfg = prepare_config(DataClient(analytics_token()), symbols=args.symbols, cross_exchange_week=args.cross_exchange_week)
         write_private(args.config, asdict(cfg), exclusive=True)
         print(dumps(dict(status='PREPARED_NOT_YET_MARKET_VERIFIED', config_hash=cfg.fingerprint,
-                         sessions=cfg.sessions, instruments=cfg.instruments)))
+                         sessions=cfg.sessions, instruments=cfg.instruments, bse_instruments=cfg.bse_instruments)))
         return 0
     if args.command == 'upgrade-greedy':
         from .upgrade import upgrade
         print(dumps(upgrade(args.config, args.db, args.backup_directory,
                             args.expected_implementation, args.release, check=args.check,
                             expand_universe=args.expand_universe, random_rotation=args.random_rotation,
-                            trend_recovery=args.trend_recovery)))
+                            trend_recovery=args.trend_recovery, profitup=args.profitup,
+                            volatility_portfolio=args.volatility_portfolio, continuous=args.continuous,
+                            cross_exchange_week=args.cross_exchange_week,
+                            spread_start=args.spread_start, spread_end=args.spread_end)))
         return 0
     cfg = TrialConfig.load(args.config)
     if args.command == 'run':

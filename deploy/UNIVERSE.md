@@ -1,4 +1,4 @@
-# Eight-stock paper universe
+# Nine-stock paper universe
 
 For the current entry/exit policy, use the
 [trend and recovery upgrade](TREND_RECOVERY.md). The selection and upgrade
@@ -20,6 +20,7 @@ from the provider, not copied from a company-name guess.
 | Bajaj Finance | BAJFINANCE |
 | One97 Communications | PAYTM |
 | IndusInd Bank | INDUSINDBK |
+| Vedanta Limited | VEDL |
 
 The [rotation policy](ROTATION.md) replaces stock-specific entry times.
 These symbols form the random selection pool; they are not a daily entry queue.
